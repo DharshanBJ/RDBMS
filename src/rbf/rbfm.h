@@ -56,14 +56,41 @@ The scan iterator is NOT required to be implemented for the part 1 of the projec
 
 class RBFM_ScanIterator {
 public:
-  RBFM_ScanIterator() {};
-  ~RBFM_ScanIterator() {};
+//	static RBFM_ScanIterator* instance();
 
+  RBFM_ScanIterator();
+  ~RBFM_ScanIterator();
+
+  FileHandle fileHandle;
+
+  vector<Attribute> recordDescriptor;
+
+  string conditionAttribute;
+  int condition_Attr_Id;
+  AttrType condition_Attr_Type;
+
+  CompOp compOp;                  // comparision type such as "<" and "="
+  void *value;                    // used in the comparison
+  vector<string> attributeNames; // a list of projected attributes
+
+  RID remainingRID;
   // Never keep the results in the memory. When getNextRecord() is called, 
   // a satisfying record needs to be fetched from the file.
   // "data" follows the same format as RecordBasedFileManager::insertRecord().
-  RC getNextRecord(RID &rid, void *data) { return RBFM_EOF; };
-  RC close() { return -1; };
+  RC getNextRecord(RID &rid, void *data);
+  RC close();
+  RC readAndValidateNextRecord(RID &rid, void *buffer, char *data ,const int num_of_slots_on_page);
+  RC checkConditionRecord(void *record);
+  RC getNextRID(RID &tempRID);
+  RC validateRID(RID &tempRID,const int num_of_slots_on_page);
+  template<class T>
+  bool compareIntFloat(T a, T b, CompOp compOp);
+  RC compareString(const char* a, const char*  b,  CompOp compOp);
+  RC getRequiredRecord(void *data, char *buffer);
+  RC getAttributeNameId(const string &attributeName,const vector<Attribute> &recordDescriptor);
+private:
+  static PagedFileManager *_pf_manager_for_iterator;
+//  static RBFM_ScanIterator *_rbfm_scanIterator;
 };
 
 
@@ -125,8 +152,12 @@ IMPORTANT, PLEASE READ: All methods below this comment (other than the construct
       RBFM_ScanIterator &rbfm_ScanIterator);
 
 
-  RC formatRecord(const vector<Attribute> &recordDescriptor,const void *data,char *buffer, int &record_size);
-  RC append_recordPage(FileHandle &fileHandle, char *read_Write_buffer, int &page_num, int &record_size, short free_space_block, RID &rid, char *buffer);
+  RC formatRecord(const vector<Attribute> &recordDescriptor,const void *data,char *buffer, int &record_size);// to make the data into the reqd. record format
+  RC append_recordPage(FileHandle &fileHandle, char *read_Write_buffer, int &page_num, int &record_size, short free_space_block, RID &rid, char *buffer);//append record to an existing page
+  RC checkConditionAttributeValue( const vector<Attribute> &recordDescriptor, const string &conditionAttribute, const CompOp compOp, const void *value, RBFM_ScanIterator &rbfm_ScanIterator);//check i/p values for the condition
+//  RC getScanConditionAttribute( const vector<Attribute> &recordDescriptor, const string &conditionAttribute, RBFM_ScanIterator &rbfm_ScanIterator);
+//  RC getScanConditionValue(RBFM_ScanIterator &rbfm_ScanIterator, const void *value);
+  RC skipField(const void *record, int &record_offset,  const Attribute attr);
 public:
 
 protected:
