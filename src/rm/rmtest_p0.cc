@@ -1,4 +1,3 @@
-
 #include "rm_test_util.h"
 
 
@@ -133,4 +132,3 @@ int main()
     RC rcmain = TEST_RM_PRIVATE_0("tbl_private_0");
     return rcmain;
 }
-

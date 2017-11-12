@@ -66,7 +66,7 @@ RC RM_TEST_EXTRA_1(const string &tableName, const int nameLength, const string &
     }
 
     free(tuple);
-    free(returnedDaa);
+    free(returnedData);
 
     cout << "***** Extra Credit Test Case 1 finished. The result will be examined. *****" << endl;
     return success;

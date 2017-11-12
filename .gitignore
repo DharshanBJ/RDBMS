@@ -10,3 +10,5 @@ test*
 rbftest*
 *.a
 *.o
+/.metadata/
+/Debug/

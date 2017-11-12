@@ -1,4 +1,3 @@
-
 #include "rm_test_util.h"
 
 int main()

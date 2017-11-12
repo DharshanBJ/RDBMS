@@ -1,4 +1,3 @@
-
 #include "rm_test_util.h"
 
 
@@ -42,7 +41,7 @@ RC TEST_RM_PRIVATE_8(const string &tableName)
             return -1;
         }
 
-        if (i % 1000 == 0){
+        if (i % 10000 == 0){
             cout << (i+1) << " / " << numTuples << " have been processed." << endl;
         }
     }

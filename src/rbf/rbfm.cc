@@ -156,7 +156,7 @@ RC RecordBasedFileManager::insertRecord(FileHandle &fileHandle,
 		free(read_Write_buffer);
 	}
 	printRecord(recordDescriptor, data); //proj 2 test
-//	cout << "inserted record---------^" << endl << endl;
+	cout << "inserted record---------^" << endl << endl;
 	free(buffer);
 	return 0;
 }
@@ -467,7 +467,7 @@ RC RecordBasedFileManager::readRecord(FileHandle &fileHandle,
 		}
 	}
 	printRecord(recordDescriptor, data);	//proj 2 test
-//	cout << "read record" << endl;
+	cout << "read record" << endl;
 	free(read_null_byte);
 	free(record_buffer);
 	free(output_read_buffer);
@@ -530,14 +530,14 @@ RC RecordBasedFileManager::updateRecord(FileHandle &fileHandle,
 	int size_of_last_block = sizeof(short);
 	int seek_num_of_records = 4092;
 	RID newRid;
-	int rid_page_num = rid.pageNum, rid_slot_num = rid.slotNum;
+	int rid_page_num = rid.pageNum, rid_slot_num = rid.slotNum;	//i/p said record to be updated
 	int new_record_size = 0;	//gives the new/updated record length
 
 	char *new_record_buffer = (char *) calloc(PAGE_SIZE, sizeof(char));	//malloc(4096);
 	char *page_buffer = (char *) calloc(PAGE_SIZE, sizeof(char));// malloc(PAGE_SIZE);buffer to load the page to be read
 	short slot_rec_len = 0, slot_rec_offset = 0;
 	printRecord(recordDescriptor, data);	//proj 2 test
-//	cout << "record update called" << endl;
+	cout << "record update called" << endl;
 	do {
 		fileHandle.readPage(rid_page_num, page_buffer);
 		memcpy(&slot_rec_offset,
@@ -556,12 +556,11 @@ RC RecordBasedFileManager::updateRecord(FileHandle &fileHandle,
 //			cout << "rid_page_num in loop : " << rid_page_num << endl;
 //			cout << "rid_slot_num in loop : " << rid_slot_num << endl;
 		} else {
-			break;	//break loop if the slot lenght is not -1
+			break;	//break loop if the slot length is not -1
 		}
 	} while (slot_rec_len < 0);
 
 	formatRecord(recordDescriptor, data, new_record_buffer, new_record_size); //format the updated input data to reqd. record format ready to be inserted/updated
-//	cout << "new_record_size :" << new_record_size << endl; //
 
 	short num_of_slots;	//num of slots on the page.
 	memcpy(&num_of_slots, page_buffer + seek_num_of_records,
@@ -600,9 +599,9 @@ RC RecordBasedFileManager::updateRecord(FileHandle &fileHandle,
 			if (slot_offset > slot_rec_offset) {
 //				cout << "slot_offset" << i << " in shift left opertn1() :"
 //						<< slot_offset << endl;
-				if (slot_offset == -1) {//in case of a deleted record's slot in dir is found
-					continue;
-				}
+//				if (slot_offset ==-1) {//in case of a deleted record's slot in dir is found //-1
+//					continue;
+//				}
 				slot_offset -= diff_len;
 //				cout << "updated slot_offset of" << i
 //						<< " in shift left opertn1() :" << slot_offset << endl;
@@ -633,7 +632,7 @@ RC RecordBasedFileManager::updateRecord(FileHandle &fileHandle,
 		int diff_len = new_record_size - slot_rec_len;
 //		cout << "free_space_val : " << free_space_val << endl;
 		if (free_space_val - diff_len >= 0) {//there is space to accommodate new rec with greater len
-			if (rid_slot_num == num_of_slots) {	//to check if the updateing rec is the last rec
+			if (rid_slot_num == num_of_slots) {	//to check if the updating rec is the last rec
 				memcpy(page_buffer + slot_rec_offset, new_record_buffer,
 						new_record_size); //update the page buffer with newly formatted record
 				memcpy(
@@ -681,9 +680,9 @@ RC RecordBasedFileManager::updateRecord(FileHandle &fileHandle,
 //						cout << "slot_offset" << i
 //								<< " in shift right opertn() :" << slot_offset
 //								<< endl;
-						if (slot_offset == -1) { //in case of a deleted record's slot in dir is found
-							continue;
-						}
+//						if (slot_offset == -1) { //in case of a deleted record's slot in dir is found
+//							continue;
+//						}
 						slot_offset += diff_len;
 						memcpy(
 								page_buffer + seek_num_of_records
@@ -734,9 +733,9 @@ RC RecordBasedFileManager::updateRecord(FileHandle &fileHandle,
 					if (slot_offset > slot_rec_offset) {
 //						cout << "slot_offset in loop 4 : " << slot_offset
 //								<< endl;
-						if (slot_offset == -1) { //in case of a deleted record's slot in dir is found
-							continue;
-						}
+//						if (slot_offset == -1) { //in case of a deleted record's slot in dir is found
+//							continue;
+//						}
 						slot_offset -= diff_len;
 //						cout << "updated slot_offset in loop 4 : "
 //								<< slot_offset << endl;
@@ -807,6 +806,13 @@ RC RecordBasedFileManager::deleteRecord(FileHandle &fileHandle,
 						- (rid_slotnum * size_of_slot), size_of_last_block);//copy the old/existing record length from slot directory
 //		cout << "slot_rec_len in loop :" << slot_rec_len << endl;
 		if (slot_rec_len == -1) {
+
+			int pointerSlotLen = 0;
+			memcpy(
+					buffer_delete + seek_num_of_records
+							- (rid_slotnum * size_of_slot), &pointerSlotLen,
+					size_of_last_block);//mark the record slot length as 0
+
 			memcpy(&rid_pagenum, (char *) buffer_delete + slot_rec_offset,
 					sizeof(int));//update with the pointer to new rid page_num
 			memcpy(&rid_slotnum,
@@ -1257,7 +1263,6 @@ RC RBFM_ScanIterator::checkConditionRecord(void *record) {
 	//to check if the condition attribute is equal to the respective attribute in the record if yes then retrieve the required attributes
 	//compare the condition attribute with the value and return true or false accordingly
 
-
 	if (compOp == NO_OP || condition_Attr_Id == -2) {//if NO_OP then return true and all the records
 		return 0;
 	}
@@ -1305,7 +1310,6 @@ RC RBFM_ScanIterator::checkConditionRecord(void *record) {
 
 			result = compareIntFloat<string>(str1, str2, compOp); // compareString(str1, str2, compOp);//
 		}
-
 	}
 
 	free(compare);
@@ -1342,35 +1346,35 @@ bool RBFM_ScanIterator::compareIntFloat(T a, T b, CompOp compOp) {
 //	return result;
 }
 
-RC RBFM_ScanIterator::compareString(const char* a, const char* b,
-		CompOp compOp) {
-	int result = -1;
-	switch (compOp) {
-	case EQ_OP:
-		result = (strcmp(a, b) == 0);
-//		result = memcmp(a,b,length);
-		break;	// no condition// =
-	case LT_OP:
-		result = (strcmp(a, b) < 0);
-		break;     // <
-	case LE_OP:
-		result = (strcmp(a, b) <= 0);
-		break;     // <=
-	case GT_OP:
-		result = (strcmp(a, b) > 0);
-		break;     // >
-	case GE_OP:
-		result = (strcmp(a, b) >= 0);
-		break;     // >=
-	case NE_OP:
-		result = (strcmp(a, b) != 0);
-		break;     // !=
-	case NO_OP:
-		result = 0;
-		break;
-	}
-	return result;
-}
+//RC RBFM_ScanIterator::compareString(const char* a, const char* b,
+//		CompOp compOp) {
+//	int result = -1;
+//	switch (compOp) {
+//	case EQ_OP:
+//		result = (strcmp(a, b) == 0);
+////		result = memcmp(a,b,length);
+//		break;	// no condition// =
+//	case LT_OP:
+//		result = (strcmp(a, b) < 0);
+//		break;     // <
+//	case LE_OP:
+//		result = (strcmp(a, b) <= 0);
+//		break;     // <=
+//	case GT_OP:
+//		result = (strcmp(a, b) > 0);
+//		break;     // >
+//	case GE_OP:
+//		result = (strcmp(a, b) >= 0);
+//		break;     // >=
+//	case NE_OP:
+//		result = (strcmp(a, b) != 0);
+//		break;     // !=
+//	case NO_OP:
+//		result = 0;
+//		break;
+//	}
+//	return result;
+//}
 
 RC RBFM_ScanIterator::getRequiredRecord(void *data, char *record) {
 
@@ -1380,8 +1384,8 @@ RC RBFM_ScanIterator::getRequiredRecord(void *data, char *record) {
 	char *write_null_byte = (char*) calloc(null_bytes_count, sizeof(char));
 	memset(write_null_byte, 0, null_bytes_count);    //write out data null bytes
 //	cout << "attr_count : " << attr_count << endl;
-	//number |= 1 << N; to set Nth bit;use 7-i concept
-	//numbernumber &= ~(1 << N; to clear Nth bit);
+			//number |= 1 << N; to set Nth bit;use 7-i concept
+			//numbernumber &= ~(1 << N; to clear Nth bit);
 
 	int descriptor_size = recordDescriptor.size();
 	int record_null_bytes_count = ceil((double) descriptor_size / 8);
@@ -1418,6 +1422,9 @@ RC RBFM_ScanIterator::getRequiredRecord(void *data, char *record) {
 		if (pos < 0) {//if the attr_names list doesn't match with record descriptor
 			write_null_byte[num_of_null_bytes_on_write_data] |= (1
 					<< (7 - num_of_null_bit_on_write_data));
+			free(write_null_byte);
+			free(read_null_byte);
+			return -1;
 		} else {
 			for (int i = 0; i < descriptor_size; i++) {
 //				matchFlag = attributeNames[j] == recordDescriptor[i].name?true:false;
@@ -1449,15 +1456,15 @@ RC RBFM_ScanIterator::getRequiredRecord(void *data, char *record) {
 									record + right_buffer_offset, sizeof(int));	//copy the int 4bytes into the data
 
 							//cout debug
-//							cout << "TypeIntrecord field read at "
-//									<< right_buffer_offset << endl;
-//							int value = 0;
-//							memcpy(&value, record + right_buffer_offset,
-//									sizeof(int));
-//							cout << endl << "TypeInt value pushed for "
-//									<< recordDescriptor[i].name << endl;
-//							cout << "TypeInt value at index" << i << " = "
-//									<< value << endl << endl;
+							cout << "TypeIntrecord field read at "
+									<< right_buffer_offset << endl;
+							int value = 0;
+							memcpy(&value, record + right_buffer_offset,
+									sizeof(int));
+							cout << endl << "TypeInt value pushed for "
+									<< recordDescriptor[i].name << endl;
+							cout << "TypeInt value at index" << i << " = "
+									<< value << endl << endl;
 
 							out_data_offset += sizeof(int);
 							result = true;
@@ -1514,16 +1521,16 @@ RC RBFM_ScanIterator::getRequiredRecord(void *data, char *record) {
 									field_length * sizeof(char));//copy the variable length characters onto the data stream field
 							out_data_offset += field_length;
 
-//							//cout debug
-//							char* char_attr = (char*) calloc(field_length,
-//									sizeof(char));
-//							memcpy(char_attr, record + null_bytes_count,
-//									field_length);
-//							cout << endl << "TypeVarChar pushed for "
-//									<< recordDescriptor[i].name << endl;
-//							cout << "TypeVarChar value from " << i << ":"
-//									<< char_attr << endl << endl;
-//							free(char_attr);
+							//cout debug
+							char* char_attr = (char*) calloc(field_length,
+									sizeof(char));
+							memcpy(char_attr, record + null_bytes_count,
+									field_length);
+							cout << endl << "TypeVarChar pushed for "
+									<< recordDescriptor[i].name << endl;
+							cout << "TypeVarChar value from " << i << ":"
+									<< char_attr << endl << endl;
+							free(char_attr);
 
 							result = true;
 						}

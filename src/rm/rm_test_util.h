@@ -11,6 +11,7 @@
 #include <iomanip>
 #include <cassert>
 #include <sys/time.h>
+#include <sys/resource.h>
 #include <set>
 #include "rm.h"
 #include "../rbf/test_util.h"
@@ -25,10 +26,10 @@ RelationManager *rm = RelationManager::instance();
 // If you can't compile the codebase because of this function, you can safely comment this function or remove it.
 void memProfile()
 {
-    /*int who = RUSAGE_SELF;
+    int who = RUSAGE_SELF;
     struct rusage usage;
     getrusage(who,&usage);
-    cerr << usage.ru_maxrss << "KB" << endl;*/
+    cerr << usage.ru_maxrss << "KB" << endl;
 }
 
 // Function to prepare the data in the correct form to be inserted/read/updated

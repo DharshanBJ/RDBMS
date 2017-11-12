@@ -85,7 +85,7 @@ public:
   RC validateRID(RID &tempRID,const int num_of_slots_on_page);
   template<class T>
   bool compareIntFloat(T a, T b, CompOp compOp);
-  RC compareString(const char* a, const char*  b,  CompOp compOp);
+//  RC compareString(const char* a, const char*  b,  CompOp compOp);
   RC getRequiredRecord(void *data, char *buffer);
   RC getAttributeNameId(const string &attributeName,const vector<Attribute> &recordDescriptor);
 private:

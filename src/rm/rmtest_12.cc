@@ -17,13 +17,13 @@ RC TEST_RM_12(const string &tableName)
 
     RID rid;
     int j = 0;
-    void *returnedData = malloc(4000);
+    void *returnedData = malloc(400);
 
     int nullAttributesIndicatorActualSize = getActualByteForNullsIndicator(attrs.size());
 
     while(rmsi.getNextTuple(rid, returnedData) != RM_EOF)
     {
-        if(j % 200 == 0)
+        if(j % 20 == 0)
         {
             int offset = 0;
 
@@ -47,11 +47,11 @@ RC TEST_RM_12(const string &tableName)
             free(buffer);
         }
         j++;
-        memset(returnedData, 0, 4000);
+        memset(returnedData, 0, 400);
     }
     rmsi.close();
     cout << "Total number of tuples: " << j << endl << endl;
-    if (j > 1000) {
+    if (j > 100) {
         cout << "***** [FAIL] Test Case 12 Failed *****" << endl << endl;
         free(returnedData);
         return -1;

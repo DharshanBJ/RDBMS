@@ -1,4 +1,3 @@
-
 #include "rm_test_util.h"
 
 RC TEST_RM_PRIVATE_9(const string &tableName)
