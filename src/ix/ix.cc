@@ -1,7 +1,9 @@
+
 #include "ix.h"
 
 #include <stdlib.h>
 #include <cstring>
+#include <sys/stat.h>
 
 #include "../rbf/pfm.h"
 
@@ -20,20 +22,29 @@ IndexManager::IndexManager() {
 IndexManager::~IndexManager() {
 }
 
-RC IndexManager::createFile(const string &fileName) {
-	return -1;
+RC IndexManager::createFile(const string &fileName)
+{
+    RC result=pfm->createFile(fileName);
+    return result;
 }
 
-RC IndexManager::destroyFile(const string &fileName) {
-	return -1;
+RC IndexManager::destroyFile(const string &fileName)
+{
+    RC result=pfm->destroyFile(fileName);
+    return result;
 }
 
-RC IndexManager::openFile(const string &fileName, IXFileHandle &ixfileHandle) {
-	return -1;
+RC IndexManager::openFile(const string &fileName, IXFileHandle &ixfileHandle)
+{
+    RC result=pfm->openFile(fileName,ixfileHandle.fileHandle);
+    return result;
 }
 
-RC IndexManager::closeFile(IXFileHandle &ixfileHandle) {
-	return -1;
+RC IndexManager::closeFile(IXFileHandle &ixfileHandle)
+{
+    RC result=pfm->closeFile(ixfileHandle.fileHandle);
+    return result;
+    
 }
 
 RC IndexManager::insertEntry(IXFileHandle &ixfileHandle,
@@ -312,17 +323,25 @@ RC IX_ScanIterator::close() {
 	return -1;
 }
 
-IXFileHandle::IXFileHandle() {
-	ixReadPageCounter = 0;
-	ixWritePageCounter = 0;
-	ixAppendPageCounter = 0;
+IXFileHandle::IXFileHandle()
+{
+    ixReadPageCounter = 0;
+    ixWritePageCounter = 0;
+    ixAppendPageCounter = 0;
 }
 
-IXFileHandle::~IXFileHandle() {
+IXFileHandle::~IXFileHandle()
+{
 }
 
-RC IXFileHandle::collectCounterValues(unsigned &readPageCount,
-		unsigned &writePageCount, unsigned &appendPageCount) {
-	return -1;
+RC IXFileHandle::collectCounterValues(unsigned &readPageCount, unsigned &writePageCount, unsigned &appendPageCount)
+{
+    fileHandle.collectCounterValues(readPageCount,writePageCount,appendPageCount);
+    
+    ixReadPageCounter=readPageCount ;
+    ixWritePageCounter=writePageCount ;
+    ixAppendPageCounter=appendPageCount;
+    return 0;
 }
+
 

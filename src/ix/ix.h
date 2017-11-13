@@ -59,6 +59,7 @@ class IndexManager {
 
     private:
         static IndexManager *_index_manager;
+       PagedFileManager *pfm;
 
         RC createNewIntermediatePage(IXFileHandle &ixfileHandle, PageNum leftPage, PageNum rightPage);//to create a new intermediate page with all the overheads set ready to use
         RC createNewLeafPage();//to create a new leaf page with all the overheads set ready to use
@@ -91,22 +92,29 @@ class IX_ScanIterator {
 
 
 class IXFileHandle {
-    public:
-
+public:
+    
     // variables to keep counter for each operation
     unsigned ixReadPageCounter;
     unsigned ixWritePageCounter;
     unsigned ixAppendPageCounter;
-
+    
     // Constructor
     IXFileHandle();
-
+    
     // Destructor
     ~IXFileHandle();
-
-	// Put the current counter values of associated PF FileHandles into variables
-	RC collectCounterValues(unsigned &readPageCount, unsigned &writePageCount, unsigned &appendPageCount);
-
+    
+    // Put the current counter values of associated PF FileHandles into variables
+    RC collectCounterValues(unsigned &readPageCount, unsigned &writePageCount, unsigned &appendPageCount);
+    
+    FileHandle fileHandle;
+    
+    
+private:
+    
+    
+    
 };
 
 #endif
