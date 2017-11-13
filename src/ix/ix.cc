@@ -1,4 +1,3 @@
-
 #include "ix.h"
 
 #include <stdlib.h>
@@ -22,29 +21,25 @@ IndexManager::IndexManager() {
 IndexManager::~IndexManager() {
 }
 
-RC IndexManager::createFile(const string &fileName)
-{
-    RC result=pfm->createFile(fileName);
-    return result;
+RC IndexManager::createFile(const string &fileName) {
+	RC result = pfm->createFile(fileName);
+	return result;
 }
 
-RC IndexManager::destroyFile(const string &fileName)
-{
-    RC result=pfm->destroyFile(fileName);
-    return result;
+RC IndexManager::destroyFile(const string &fileName) {
+	RC result = pfm->destroyFile(fileName);
+	return result;
 }
 
-RC IndexManager::openFile(const string &fileName, IXFileHandle &ixfileHandle)
-{
-    RC result=pfm->openFile(fileName,ixfileHandle.fileHandle);
-    return result;
+RC IndexManager::openFile(const string &fileName, IXFileHandle &ixfileHandle) {
+	RC result = pfm->openFile(fileName, ixfileHandle.fileHandle);
+	return result;
 }
 
-RC IndexManager::closeFile(IXFileHandle &ixfileHandle)
-{
-    RC result=pfm->closeFile(ixfileHandle.fileHandle);
-    return result;
-    
+RC IndexManager::closeFile(IXFileHandle &ixfileHandle) {
+	RC result = pfm->closeFile(ixfileHandle.fileHandle);
+	return result;
+
 }
 
 RC IndexManager::insertEntry(IXFileHandle &ixfileHandle,
@@ -84,18 +79,19 @@ RC IndexManager::insertEntry(IXFileHandle &ixfileHandle,
 }
 
 RC IndexManager::insertIntoIntermediatePage(IXFileHandle &ixfileHandle,
-		const void *key, PageNum page_ptr, int type, void *buffer,int free_space_of_page, int num_of_slots, int char_len) {
+		const void *key, PageNum page_ptr, int type, void *buffer,
+		int free_space_of_page, int num_of_slots, int char_len) {
 
 //	char *buffer = (char *) calloc(PAGE_SIZE, 1);
 //	ixfileHandle.readPage(page_ptr, buffer);
 
 	//to read free space available on the page
 //	int free_space_of_page = 0;
-	memcpy(&free_space_of_page, buffer + FREE_SPACE_BLOCK, 2);
+//	memcpy(&free_space_of_page, buffer + FREE_SPACE_BLOCK, 2);
 
 	//to read the present number of indexes slot on the page
 //	int num_of_slots = 0;
-	memcpy(&num_of_slots, buffer + NUM_OF_INDEX_BLOCK, 2);
+//	memcpy(&num_of_slots, buffer + NUM_OF_INDEX_BLOCK, 2);
 
 	int page_num_ptr = 0;
 	int buffer_offset_to_insert = searchIntermediateNode(key, page_num_ptr,
@@ -104,16 +100,16 @@ RC IndexManager::insertIntoIntermediatePage(IXFileHandle &ixfileHandle,
 	//compaction starts here
 //------------needs to be checked before this function
 //	int char_len = 4;
-	if (type == 2) {
-		memcpy(&char_len, (char *) key, 4);
-		char_len += 4;	//char length + 4 bytes representing it
-	}
-
-	//if available free space cannot accommodate new key and page PTR
-	if (free_space_of_page < (char_len + 4)) {
-//		free(buffer);
-		return -1;
-	}
+//	if (type == 2) {
+//		memcpy(&char_len, (char *) key, 4);
+//		char_len += 4;	//char length + 4 bytes representing it
+//	}
+//
+//	//if available free space cannot accommodate new key and page PTR
+//	if (free_space_of_page < (char_len + 4)) {
+////		free(buffer);
+//		return -1;
+//	}
 //-------------------------------------------------------------
 
 	//find length and move right
@@ -126,17 +122,46 @@ RC IndexManager::insertIntoIntermediatePage(IXFileHandle &ixfileHandle,
 	//update the buffer with new key and page ptr to be inserted
 	memcpy((char*) buffer + buffer_offset_to_insert, (char*) key, char_len);
 	memcpy((char*) buffer + buffer_offset_to_insert + char_len, &page_ptr,
-			PAGE_NUM_PTR_SIZE);
+	PAGE_NUM_PTR_SIZE);
 
 	//update the number of indexes slot on the page
 	num_of_slots += 1;
-	memcpy(buffer + NUM_OF_INDEX_BLOCK, &num_of_slots, 2);
+	memcpy((char *) buffer + NUM_OF_INDEX_BLOCK, &num_of_slots, 2);
 
 	//update the newly available free space on the page
 	free_space_of_page = free_space_of_page - PAGE_NUM_PTR_SIZE - char_len;
-	memcpy(&free_space_of_page, buffer + FREE_SPACE_BLOCK, 2);
+	memcpy(&free_space_of_page, (char *) buffer + FREE_SPACE_BLOCK, 2);
 
 //	free(buffer);
+	return 0;
+}
+
+RC IndexManager::insertIntoLeafPage(IXFileHandle &ixfileHandle, const void *key,
+		const RID &rid, int type, void *buffer, int free_space_of_page,
+		int num_of_slots, int char_len) {
+
+	//search the position where the key has to be inserted
+	int buffer_offset_to_insert = searchLeafNode(key, buffer, type);
+	int move_len = PAGE_SIZE - 10 - free_space_of_page
+			- buffer_offset_to_insert;//diff between last data  offset - place to be inserted
+
+	//find length and move right
+	memmove(
+			(char*) buffer + buffer_offset_to_insert + char_len + RID_BLOCK_SIZE,
+			(char*) buffer + buffer_offset_to_insert, move_len);
+
+	//update the buffer with new key and page ptr to be inserted
+	memcpy((char*) buffer + buffer_offset_to_insert, (char*) key, char_len);
+	memcpy((char*) buffer + buffer_offset_to_insert + char_len, &rid,
+	RID_BLOCK_SIZE);
+
+	//update the number of indexes slot on the page
+	num_of_slots += 1;
+	memcpy((char *) buffer + NUM_OF_INDEX_BLOCK, &num_of_slots, 2);
+
+	//update the newly available free space on the page
+	free_space_of_page = free_space_of_page - RID_BLOCK_SIZE - char_len;
+	memcpy(&free_space_of_page, (char*) buffer + FREE_SPACE_BLOCK, 2);
 	return 0;
 }
 
@@ -323,25 +348,23 @@ RC IX_ScanIterator::close() {
 	return -1;
 }
 
-IXFileHandle::IXFileHandle()
-{
-    ixReadPageCounter = 0;
-    ixWritePageCounter = 0;
-    ixAppendPageCounter = 0;
+IXFileHandle::IXFileHandle() {
+	ixReadPageCounter = 0;
+	ixWritePageCounter = 0;
+	ixAppendPageCounter = 0;
 }
 
-IXFileHandle::~IXFileHandle()
-{
+IXFileHandle::~IXFileHandle() {
 }
 
-RC IXFileHandle::collectCounterValues(unsigned &readPageCount, unsigned &writePageCount, unsigned &appendPageCount)
-{
-    fileHandle.collectCounterValues(readPageCount,writePageCount,appendPageCount);
-    
-    ixReadPageCounter=readPageCount ;
-    ixWritePageCounter=writePageCount ;
-    ixAppendPageCounter=appendPageCount;
-    return 0;
-}
+RC IXFileHandle::collectCounterValues(unsigned &readPageCount,
+		unsigned &writePageCount, unsigned &appendPageCount) {
+	fileHandle.collectCounterValues(readPageCount, writePageCount,
+			appendPageCount);
 
+	ixReadPageCounter = readPageCount;
+	ixWritePageCounter = writePageCount;
+	ixAppendPageCounter = appendPageCount;
+	return 0;
+}
 
