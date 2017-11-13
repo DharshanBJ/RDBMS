@@ -55,7 +55,78 @@ RC IndexManager::insertEntry(IXFileHandle &ixfileHandle,
 	// contd. and update the hidden page with the new root pageNum PTR.
 	// The new root Key will have left pointer pointing to the old Intermediate Node and right will be to the Newly created Intermediate Node
 
+	//read Page 0-to accomoda
+
+//	int type =0;
+//	if(attribute.type == TypeInt){
+//		type =0;
+//	}else if(attribute.type == TypeReal){
+//		type =1;
+//	}else{
+//		type =2;
+//	}
+//	ixfileHandle.readPage(page_ptr, buffer);
+//	insertIntoIntermediatePage(ixfileHandle,key,page_ptr,type,buffer,free_space_of_page,num_of_slots,char_len);
+	//write back the buffer into the page
+//	ixfileHandle.writePage(page_ptr, buffer);
 	return -1;
+}
+
+RC IndexManager::insertIntoIntermediatePage(IXFileHandle &ixfileHandle,
+		const void *key, PageNum page_ptr, int type, void *buffer,int free_space_of_page, int num_of_slots, int char_len) {
+
+//	char *buffer = (char *) calloc(PAGE_SIZE, 1);
+//	ixfileHandle.readPage(page_ptr, buffer);
+
+	//to read free space available on the page
+//	int free_space_of_page = 0;
+	memcpy(&free_space_of_page, buffer + FREE_SPACE_BLOCK, 2);
+
+	//to read the present number of indexes slot on the page
+//	int num_of_slots = 0;
+	memcpy(&num_of_slots, buffer + NUM_OF_INDEX_BLOCK, 2);
+
+	int page_num_ptr = 0;
+	int buffer_offset_to_insert = searchIntermediateNode(key, page_num_ptr,
+			buffer, type);	//offset where the insert should happen
+
+	//compaction starts here
+//------------needs to be checked before this function
+//	int char_len = 4;
+	if (type == 2) {
+		memcpy(&char_len, (char *) key, 4);
+		char_len += 4;	//char length + 4 bytes representing it
+	}
+
+	//if available free space cannot accommodate new key and page PTR
+	if (free_space_of_page < (char_len + 4)) {
+//		free(buffer);
+		return -1;
+	}
+//-------------------------------------------------------------
+
+	//find length and move right
+	int move_len = PAGE_SIZE - 6 - free_space_of_page - buffer_offset_to_insert;//diff between last data  offset - place to be inserted
+	memmove(
+			(char*) buffer + buffer_offset_to_insert + char_len
+					+ PAGE_NUM_PTR_SIZE,
+			(char*) buffer + buffer_offset_to_insert, move_len);
+
+	//update the buffer with new key and page ptr to be inserted
+	memcpy((char*) buffer + buffer_offset_to_insert, (char*) key, char_len);
+	memcpy((char*) buffer + buffer_offset_to_insert + char_len, &page_ptr,
+			PAGE_NUM_PTR_SIZE);
+
+	//update the number of indexes slot on the page
+	num_of_slots += 1;
+	memcpy(buffer + NUM_OF_INDEX_BLOCK, &num_of_slots, 2);
+
+	//update the newly available free space on the page
+	free_space_of_page = free_space_of_page - PAGE_NUM_PTR_SIZE - char_len;
+	memcpy(&free_space_of_page, buffer + FREE_SPACE_BLOCK, 2);
+
+//	free(buffer);
+	return 0;
 }
 
 RC IndexManager::deleteEntry(IXFileHandle &ixfileHandle,
@@ -68,14 +139,14 @@ RC IndexManager::searchIntermediateNode(const void *key, int &pagePtr,
 
 	//corner case test for intermediate page
 	short flag;
-	memcpy(&flag, (char *) buffer + 4094, 2);
+	memcpy(&flag, (char *) buffer + NODE_FLAG_BLOCK, 2);
 	if (flag) {
 		return -1;	//if the node is a leaf node
 	}
 
 	//to return the correct page Num for the give Key
 	short num_of_index_slots;
-	memcpy(&num_of_index_slots, (char*) buffer + 4088, 2);
+	memcpy(&num_of_index_slots, (char*) buffer + NUM_OF_INDEX_BLOCK, 2);
 
 	int buffer_offset = 4;	//4->left pointer of first key
 	for (int i = 0; i < (int) num_of_index_slots; i++) {
@@ -86,7 +157,8 @@ RC IndexManager::searchIntermediateNode(const void *key, int &pagePtr,
 		if (type == 2) {
 			memcpy(&char_len, (char *) buffer + buffer_offset, 4);
 
-			memcpy(comparisonEntry, (char *) buffer + buffer_offset+4, char_len);
+			memcpy(comparisonEntry, (char *) buffer + buffer_offset + 4,
+					char_len);
 
 		} else {
 			memcpy(comparisonEntry, (char *) buffer + buffer_offset, 4);
@@ -94,7 +166,6 @@ RC IndexManager::searchIntermediateNode(const void *key, int &pagePtr,
 		}
 
 		if (compareEntryKeyIndex(key, comparisonEntry, type, char_len) == 1) {//check if key Parameter is right or not
-//			memcpy(&pagePtr,(char *)buffer + buffer_offset-4,4);//read left page number Ptr onto pagePTR
 			free(comparisonEntry);
 			break;
 		}
@@ -108,23 +179,23 @@ RC IndexManager::searchIntermediateNode(const void *key, int &pagePtr,
 
 		free(comparisonEntry);
 	}
-	memcpy(&pagePtr,(char *)buffer + buffer_offset-4,4);//read left page number Ptr onto pagePTR
+	memcpy(&pagePtr, (char *) buffer + buffer_offset - 4, 4);//read left page number Ptr onto pagePTR
 	return buffer_offset;
-	//pagePtr is updated with appropriate page num for child intermediate/leaf node and buffer_offset to insert is returned (4<default> , max<4088>)
+	//pagePtr is updated with appropriate page num for child intermediate/leaf node and buffer_offset for insert index -> returned (4<default> , max<4090>)
 }
 
 RC IndexManager::searchLeafNode(const void *key, void *buffer, int type) {
 
 	//corner case test for intermediate page
 	short flag;
-	memcpy(&flag, (char *) buffer + 4094, 2);
+	memcpy(&flag, (char *) buffer + NODE_FLAG_BLOCK, 2);
 	if (flag == 0) {
 		return -1;	//if the node is an intermediate node
 	}
 
 	//to loop through until you find the match greater than the of the key
 	short num_of_key_slots;
-	memcpy(&num_of_key_slots, (char*) buffer + 4088, 2);
+	memcpy(&num_of_key_slots, (char*) buffer + NUM_OF_INDEX_BLOCK, 2);
 	int buffer_offset = -1;
 	for (int i = 0; i < (int) num_of_key_slots; i++) {
 		int char_len = 0;
@@ -134,7 +205,8 @@ RC IndexManager::searchLeafNode(const void *key, void *buffer, int type) {
 		if (type == 2) {
 			memcpy(&char_len, (char *) buffer + buffer_offset, 4);
 
-			memcpy(comparisonEntry, (char *) buffer + buffer_offset+4, char_len);
+			memcpy(comparisonEntry, (char *) buffer + buffer_offset + 4,
+					char_len);
 
 		} else {
 			memcpy(comparisonEntry, (char *) buffer + buffer_offset, 4);
@@ -157,7 +229,7 @@ RC IndexManager::searchLeafNode(const void *key, void *buffer, int type) {
 	return buffer_offset;
 	//in the calling function check for value for offset based on which decide to insert or split and insert
 	//-1 implies no keys exists
-	//4084 implies the page is full
+	//4086 implies the page is full
 }
 
 RC IndexManager::compareEntryKeyIndex(const void *key, void *comparisonEntry,
@@ -215,11 +287,7 @@ RC readLeafVarcharKey(const void *key, PageNum pagePtr, void *buffer,
 		int offset, int char_len) {
 	return 0;
 }
-RC IndexManager::insertIntoIntermediatePage(IXFileHandle &ixfileHandle,
-		const void *key, PageNum leftPage, PageNum rightPage) {
 
-	return 0;
-}
 RC IndexManager::scan(IXFileHandle &ixfileHandle, const Attribute &attribute,
 		const void *lowKey, const void *highKey, bool lowKeyInclusive,
 		bool highKeyInclusive, IX_ScanIterator &ix_ScanIterator) {

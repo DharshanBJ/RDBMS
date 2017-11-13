@@ -7,13 +7,12 @@
 #include "../rbf/rbfm.h"
 
 # define IX_EOF (-1)  // end of the index scan
-#define FREE_SPACE_BLOCK_SIZE 2;
-#define NODE_FLAG_BLOCK_SIZE 1;
-#define NUM_OF_REC_BLOCK_SIZE 2;
-#define SLOT_OFFSET_BLOCK_SIZE 2;
-#define SLOT_LENGTH_BLOCK_SIZE 2;
-#define PAGE_NUM_PTR_SIZE 4;
-#define RID_BLOCK_SIZE 8;
+#define FREE_SPACE_BLOCK 4092
+#define NODE_FLAG_BLOCK 4094
+#define NUM_OF_INDEX_BLOCK 4090
+#define NEXT_PAGE_PTR 4086
+#define PAGE_NUM_PTR_SIZE 4
+#define RID_BLOCK_SIZE 8
 
 
 class IX_ScanIterator;
@@ -64,8 +63,8 @@ class IndexManager {
         RC createNewIntermediatePage(IXFileHandle &ixfileHandle, PageNum leftPage, PageNum rightPage);//to create a new intermediate page with all the overheads set ready to use
         RC createNewLeafPage();//to create a new leaf page with all the overheads set ready to use
         RC updateRootPage();//to update Root node
-        RC insertIntoIntermediatePage(IXFileHandle &ixfileHandle, const void *key, PageNum leftPage, PageNum rightPage);//to insert key and pointer to non-leaf /intermediate page
-        RC insertIntoLeafPage();//to insert key and pointer to leaf page
+        RC insertIntoIntermediatePage(IXFileHandle &ixfileHandle, const void *key, PageNum page_ptr, int type, void *buffer,int free_space_of_page, int num_of_slots, int char_len);//to insert key and pointer to non-leaf /intermediate page
+        RC insertIntoLeafPage(IXFileHandle &ixfileHandle, const void *key, PageNum leftPage, PageNum rightPage);//to insert key and pointer to leaf page
         RC searchLeafNode(const void *key, void *buffer, int type);//to search the key in leaf node
         RC searchIntermediateNode(const void *key, int &pagePtr, void *buffer, int type);//to search the key in intermediate node
         RC readLeafVarcharKey(const void *key, PageNum pagePtr, void *buffer, int offset, int char_len);
