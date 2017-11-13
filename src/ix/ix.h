@@ -67,9 +67,9 @@ class IndexManager {
         RC insertIntoIntermediatePage(IXFileHandle &ixfileHandle, const void *key, PageNum leftPage, PageNum rightPage);//to insert key and pointer to non-leaf /intermediate page
         RC insertIntoLeafPage();//to insert key and pointer to leaf page
         RC searchLeafNode(const void *key, void *buffer, int type);//to search the key in leaf node
-        RC searchIntermediateNode(const void *key, PageNum pagePtr, void *buffer);//to search the key in intermediate node
+        RC searchIntermediateNode(const void *key, int &pagePtr, void *buffer, int type);//to search the key in intermediate node
         RC readLeafVarcharKey(const void *key, PageNum pagePtr, void *buffer, int offset, int char_len);
-        RC compareEntryKeyIndex(const void *key, void *comparisonEntry, int type, int compare_len);//compare the key and entry generic function
+        RC compareEntryKeyIndex(const void *key, void *comparisonEntry, int type, int compare_len);//, short node_type);//compare the key and entry generic function
 };
 
 
