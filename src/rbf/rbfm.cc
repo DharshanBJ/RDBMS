@@ -809,7 +809,7 @@ RC RecordBasedFileManager::deleteRecord(FileHandle &fileHandle,
 
 			int pointerSlotLen = 0;
 			memcpy(
-					buffer_delete + seek_num_of_records
+					(char*)buffer_delete + seek_num_of_records
 							- (rid_slotnum * size_of_slot), &pointerSlotLen,
 					size_of_last_block);//mark the record slot length as 0
 

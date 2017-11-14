@@ -1,7 +1,9 @@
 #include "pfm.h"
 
+#include <stdlib.h>
 #include <sys/stat.h>
 #include <cstdio>
+#include <cstring>
 
 
 PagedFileManager* PagedFileManager::_pf_manager = 0;
@@ -25,30 +27,31 @@ PagedFileManager::~PagedFileManager()
 }
 
 RC createHiddenPage(FILE *file){
-    void *pageBuffer=malloc(4096);
+    void *pageBuffer=calloc(4096,1);
     int value=0;
     int offset = 0;
     //readPageCounter
-    memcpy((int *)pageBuffer+offset, &value, sizeof(int));
+    memcpy((char *)pageBuffer+offset, &value, sizeof(int));
     offset += sizeof(int);
     
     //writePageCounter
-    memcpy((int *)pageBuffer+offset, &value, sizeof(int));
+    memcpy((char *)pageBuffer+offset, &value, sizeof(int));
     offset += sizeof(int);
     
     
     //appendPageCounter
-    memcpy((int *)pageBuffer+offset, &value, sizeof(int));
+    memcpy((char *)pageBuffer+offset, &value, sizeof(int));
     offset += sizeof(int);
     
     //root pointer pageNum
-    memcpy((int *)pageBuffer+offset, &value, sizeof(int));
+    memcpy((char *)pageBuffer+offset, &value, sizeof(int));
     offset += sizeof(int);
     
     
     fwrite(pageBuffer, 4096, 1, file);
     fflush(file);
     
+    free(pageBuffer);
     return 0;
 }
 
