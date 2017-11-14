@@ -80,7 +80,7 @@ RC IndexManager::insertEntry(IXFileHandle &ixfileHandle,
 
 RC IndexManager::insertIntoIntermediatePage(IXFileHandle &ixfileHandle,
 		const void *key, PageNum page_ptr, int type, void *buffer,
-		int free_space_of_page, int num_of_slots, int char_len) {
+		short free_space_of_page, short num_of_slots, int char_len) {//char_len =4 for real and int and 4+var_char for others has to be passed along
 
 //	char *buffer = (char *) calloc(PAGE_SIZE, 1);
 //	ixfileHandle.readPage(page_ptr, buffer);
@@ -137,13 +137,13 @@ RC IndexManager::insertIntoIntermediatePage(IXFileHandle &ixfileHandle,
 }
 
 RC IndexManager::insertIntoLeafPage(IXFileHandle &ixfileHandle, const void *key,
-		const RID &rid, int type, void *buffer, int free_space_of_page,
-		int num_of_slots, int char_len) {
+		const RID &rid, int type, void *buffer, short free_space_of_page,
+		short num_of_slots, int char_len) {
 
 	//search the position where the key has to be inserted
 	int buffer_offset_to_insert = searchLeafNode(key, buffer, type);
 	int move_len = PAGE_SIZE - 10 - free_space_of_page
-			- buffer_offset_to_insert;//diff between last data  offset - place to be inserted
+			- buffer_offset_to_insert;//difference between last data  offset - place to be inserted
 
 	//find length and move right
 	memmove(
@@ -170,6 +170,66 @@ RC IndexManager::deleteEntry(IXFileHandle &ixfileHandle,
 	return -1;
 }
 
+RC IndexManager::deleteEntryInLeaf(IXFileHandle &ixfileHandle, const void *key,
+		const RID &rid, int type, void *buffer, short free_space_of_page,
+		short num_of_slots, int char_key_len) {
+
+	//corner case test for intermediate page
+	short flag;
+	memcpy(&flag, (char *) buffer + NODE_FLAG_BLOCK, 2);
+	if (flag == 0) {
+		return -1;	//if the node is an intermediate node
+	}
+
+	int buffer_offset_to_delete = 0;	//searchLeafNode(key, buffer, type);
+	void *comparisonEntry = calloc(100, 1);
+	for (int i = 0; i < (int) num_of_slots; i++) {
+		int char_len = 0;
+
+		//to compare the key if var char type ==2 else compare 4 bytes
+		if (type == 2) {
+			memcpy(&char_len, (char *) buffer + buffer_offset_to_delete, 4);
+
+			memcpy(comparisonEntry,
+					(char *) buffer + buffer_offset_to_delete + 4,
+					char_len + 8);
+
+		} else {
+			memcpy(comparisonEntry, (char *) buffer + buffer_offset_to_delete,
+					4 + 8);
+			char_len = 4;
+		}
+		if (compareDeleteEntryKeyRID(key, comparisonEntry, rid, type, char_len)
+				== 1) {	//check if key Parameter is right or not
+			break;
+		}
+		if (type == 2) {
+			buffer_offset_to_delete += 4;
+		}
+		buffer_offset_to_delete += char_len;	//length of var_char else 4
+		buffer_offset_to_delete += RID_BLOCK_SIZE
+		;
+
+	}
+	free(comparisonEntry);
+
+	int move_len = PAGE_SIZE - 10 - free_space_of_page - buffer_offset_to_delete
+			- char_key_len - RID_BLOCK_SIZE;//diff between last data  offset - offset of next index place to be deleted
+	//find length and move right
+	memmove((char*) buffer + buffer_offset_to_delete,
+			(char*) buffer + buffer_offset_to_delete + char_key_len
+					+ RID_BLOCK_SIZE, move_len);
+
+	//update the number of indexes slot on the page
+	num_of_slots -= 1;
+	memcpy((char *) buffer + NUM_OF_INDEX_BLOCK, &num_of_slots, 2);
+
+	//update the newly available free space on the page
+	free_space_of_page = free_space_of_page + RID_BLOCK_SIZE + char_key_len;
+	memcpy(&free_space_of_page, (char*) buffer + FREE_SPACE_BLOCK, 2);
+	return 0;
+}
+
 RC IndexManager::searchIntermediateNode(const void *key, int &pagePtr,
 		void *buffer, int type) {
 
@@ -185,9 +245,9 @@ RC IndexManager::searchIntermediateNode(const void *key, int &pagePtr,
 	memcpy(&num_of_index_slots, (char*) buffer + NUM_OF_INDEX_BLOCK, 2);
 
 	int buffer_offset = 4;	//4->left pointer of first key
+	void *comparisonEntry = calloc(100, 1);
 	for (int i = 0; i < (int) num_of_index_slots; i++) {
 		int char_len = 0;
-		void *comparisonEntry = calloc(100, 1);
 
 		//to compare the key if var char type ==2 else compare 4 bytes
 		if (type == 2) {
@@ -202,7 +262,7 @@ RC IndexManager::searchIntermediateNode(const void *key, int &pagePtr,
 		}
 
 		if (compareEntryKeyIndex(key, comparisonEntry, type, char_len) == 1) {//check if key Parameter is right or not
-			free(comparisonEntry);
+//			free(comparisonEntry);
 			break;
 		}
 
@@ -213,9 +273,9 @@ RC IndexManager::searchIntermediateNode(const void *key, int &pagePtr,
 		buffer_offset += char_len;	//length of var_char else 4 for int/real
 		buffer_offset += PAGE_NUM_PTR_SIZE;
 
-		free(comparisonEntry);
 	}
 	memcpy(&pagePtr, (char *) buffer + buffer_offset - 4, 4);//read left page number Ptr onto pagePTR
+	free(comparisonEntry);
 	return buffer_offset;
 	//pagePtr is updated with appropriate page num for child intermediate/leaf node and buffer_offset for insert index -> returned (4<default> , max<4090>)
 }
@@ -233,9 +293,9 @@ RC IndexManager::searchLeafNode(const void *key, void *buffer, int type) {
 	short num_of_key_slots;
 	memcpy(&num_of_key_slots, (char*) buffer + NUM_OF_INDEX_BLOCK, 2);
 	int buffer_offset = -1;
+	void *comparisonEntry = calloc(100, 1);
 	for (int i = 0; i < (int) num_of_key_slots; i++) {
 		int char_len = 0;
-		void *comparisonEntry = calloc(100, 1);
 
 		//to compare the key if var char type ==2 else compare 4 bytes
 		if (type == 2) {
@@ -250,7 +310,7 @@ RC IndexManager::searchLeafNode(const void *key, void *buffer, int type) {
 		}
 		if (compareEntryKeyIndex(key, comparisonEntry, type, char_len) == 1) {//check if key Parameter is right or not
 
-			free(comparisonEntry);
+//			free(comparisonEntry);
 			break;
 		}
 		if (type == 2) {
@@ -259,9 +319,9 @@ RC IndexManager::searchLeafNode(const void *key, void *buffer, int type) {
 		buffer_offset += char_len;	//length of var_char else 4
 		buffer_offset += RID_BLOCK_SIZE
 		;
-		free(comparisonEntry);
-	}
 
+	}
+	free(comparisonEntry);
 	return buffer_offset;
 	//in the calling function check for value for offset based on which decide to insert or split and insert
 	//-1 implies no keys exists
@@ -269,7 +329,7 @@ RC IndexManager::searchLeafNode(const void *key, void *buffer, int type) {
 }
 
 RC IndexManager::compareEntryKeyIndex(const void *key, void *comparisonEntry,
-		int type, int compare_len) {	//, short node_type) {
+		int type, int compare_len) {
 	int result = 0;
 
 	if (type == 0) {
@@ -278,11 +338,7 @@ RC IndexManager::compareEntryKeyIndex(const void *key, void *comparisonEntry,
 		memcpy(&compare1, (char *) comparisonEntry, compare_len);
 
 		int compare_key = *(int *) key;
-//		if (node_type == 1) {
 		result = (compare_key < compare1) ? 1 : 0;
-//		} else {
-//
-//		}
 
 	} else if (type == 1) {
 
@@ -290,11 +346,7 @@ RC IndexManager::compareEntryKeyIndex(const void *key, void *comparisonEntry,
 		memcpy(&compare1, (char *) comparisonEntry, compare_len);
 
 		float compare_key = *(float *) key;
-//		if (node_type == 1) {
 		result = (compare_key < compare1) ? 1 : 0;
-//		} else {
-//
-//		}
 
 	} else if (type == 2) {
 
@@ -309,16 +361,62 @@ RC IndexManager::compareEntryKeyIndex(const void *key, void *comparisonEntry,
 		memcpy(&str2_Array, (char *) key + 4, str2_len); //copy the key into string format
 		string str2_Key(str2_Array, str2_len); //convert the char array to string
 
-//		if (node_type == 1) {
 		result = (str2_Key < str1) ? 1 : 0;
-//		} else {
-//			result = (str2_Key > str1) ? 1 : 0;
-//		}
 
 	}
 	return result;
 }
 
+RC IndexManager::compareDeleteEntryKeyRID(const void *key,
+		void *comparisonEntry, const RID &rid, int type, int compare_len) {
+	int result = 0;
+
+	if (type == 0) {
+
+		int compare1 = 0;
+		memcpy(&compare1, (char *) comparisonEntry, compare_len);
+
+		int compare_key = *(int *) key;
+		result = (compare_key == compare1) ? 1 : 0;
+
+	} else if (type == 1) {
+
+		float compare1 = 0;
+		memcpy(&compare1, (char *) comparisonEntry, compare_len);
+
+		float compare_key = *(float *) key;
+		result = (compare_key == compare1) ? 1 : 0;
+
+	} else if (type == 2) {
+
+		char str1_Array[compare_len];
+		memcpy(&str1_Array, (char *) comparisonEntry, compare_len); //copy the varchar entry into string format
+		string str1(str1_Array, compare_len); //convert the char array to string
+
+		int str2_len = 0; //parameter key
+		memcpy(&str2_len, (char *) key, 4);
+
+		char str2_Array[str2_len];
+		memcpy(&str2_Array, (char *) key + 4, str2_len); //copy the key into string format
+		string str2_Key(str2_Array, str2_len); //convert the char array to string
+
+		result = (str2_Key == str1) ? 1 : 0;
+
+	}
+
+	if (result == 1) {
+		unsigned compare1_page_num = -1, compare1_slot_num = -1;
+
+		memcpy(&compare1_page_num, (char *) comparisonEntry + compare_len, 4);
+		memcpy(&compare1_slot_num, (char *) comparisonEntry + compare_len + 4,
+				4);
+
+		result =
+				((compare1_page_num == rid.pageNum)
+						&& (compare1_slot_num == rid.slotNum)) ? 1 : 0;
+	}
+	return result;
+}
 RC readLeafVarcharKey(const void *key, PageNum pagePtr, void *buffer,
 		int offset, int char_len) {
 	return 0;
