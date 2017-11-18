@@ -36,7 +36,12 @@ RC IndexManager::createFile(const string &fileName) {
 		return res;
 
 	// Create the root<leaf> page, mark it as a leaf, it's page 1
-	res = newPage(ixfileHandle.fileHandle, 1, true, 0, 0);
+	//create a buffer for page
+	void *new_page_buffer = calloc(PAGE_SIZE, 1);
+
+	res = newPage(ixfileHandle.fileHandle, new_page_buffer, 1, true, 0, 0);
+
+	free(new_page_buffer);
 	if (res < 0)
 		return res;
 
@@ -72,25 +77,20 @@ RC IndexManager::closeFile(IXFileHandle &ixfileHandle) {
 RC IndexManager::updateRootPage(FileHandle& fileHandle,
 		unsigned root_page_num) {
 
-	//update the root page number in the hidden page-> 0
+	//update the root page number in the hidden page0
 	fileHandle.writeRootPageNumber(root_page_num);
 	return 0;
 }
 
 RC IndexManager::readRootPage(FileHandle& fileHandle) {
 	int root_page_num = 1;
-	void *root_page_buffer = calloc(4096, 1);
-
-	//read root page in the page 0 of the file
-	fileHandle.readPage(0, root_page_buffer);
-	memcpy(&root_page_num, (char*) root_page_buffer + 12, 4);
-
-	free(root_page_buffer);
+	root_page_num = fileHandle.readRootPageNumber();
 	return root_page_num;
 }
 
-RC IndexManager::newPage(FileHandle& fileHandle, PageNum page_num, bool is_leaf,
-		PageNum next_leaf_page_num, PageNum left_child_page_num) {
+RC IndexManager::newPage(FileHandle& fileHandle, void *new_page_buffer,
+		PageNum page_num, bool is_leaf, PageNum next_leaf_page_num,
+		PageNum left_child_page_num) {
 
 	const unsigned currentNumPages = fileHandle.getNumberOfPages();
 
@@ -101,7 +101,6 @@ RC IndexManager::newPage(FileHandle& fileHandle, PageNum page_num, bool is_leaf,
 	int next_page_num = is_leaf ? (int) next_leaf_page_num : -1;
 
 	//create a buffer for page
-	void *new_page_buffer = calloc(PAGE_SIZE, 1);
 
 	//prepare the buffer with footer values
 	memcpy((char *) new_page_buffer + NODE_FLAG_BLOCK, &isLeafPage, 2);
@@ -129,8 +128,6 @@ RC IndexManager::newPage(FileHandle& fileHandle, PageNum page_num, bool is_leaf,
 		if (res < 0)
 			cout << "File->append page at new page() failed" << endl;
 	}
-
-	free(new_page_buffer);
 	return 0;
 }
 
@@ -144,7 +141,7 @@ RC IndexManager::insertEntry(IXFileHandle &ixfileHandle,
 	// contd. read of pageNum PTR the position to insert --all logic happens here
 	// contd. return the pageNum PTR(intermediate search) & offset to insert(node page search)
 	// based on offset call insertIntoLeafPage()
-	// if overflow of leaf node page then create a new leafPage an update the required overheads and move data into new page->
+	// if overflow of leaf node page then create a new leafPage and update the required overheads and move data into new page->
 	// contd. insert the <key,rid> and update the upper intermediate nodes with the LOWEST_KEY of the newly created leaf page ->insertIntermediatePage(this lowestkey)
 	// contd. if an overflow is also found in the intermediate nodes because of leaf getting split (as usual pass LOWEST_KEY up) and then
 	// create a new intermediate parent Node and split by putting half the data into the new intermediate one
@@ -154,7 +151,7 @@ RC IndexManager::insertEntry(IXFileHandle &ixfileHandle,
 	// contd. and update the hidden page with the new root pageNum PTR.
 	// The new root Key will have left pointer pointing to the old Intermediate Node and right will be to the Newly created Intermediate Node
 
-	//read Page 0-to accomoda
+	//read Page 0-to accommodate
 
 	cout << "No. of pages :" << ixfileHandle.fileHandle.getNumberOfPages()
 			<< endl;
@@ -163,51 +160,497 @@ RC IndexManager::insertEntry(IXFileHandle &ixfileHandle,
 				(attribute.type == TypeReal) ? 1 : 0;
 
 	// To keep track of pages we've traversed so that we can find their parent pointers
-	std::vector<int> parents;
+//	std::vector<int> parents;
 
 	// Traverse down the tree to the leaf, using non-leaves along the way
 	int insert_dest = readRootPage(ixfileHandle.fileHandle);
-	void *insert_enrty_buffer = calloc(4096, 1);
+
+	RID prop_page_num;
+	int prop_key_len = 0;
+	void *prop_page_pointer = calloc(4096, 1);
+	insertReccursion(insert_dest, key, ixfileHandle, rid, type,
+			prop_page_pointer, prop_page_num, prop_key_len);
+
+	free(prop_page_pointer);
+
+//	cout << "insert destination" << insert_dest << endl;
+//	void *insert_entry_buffer = calloc(4096, 1);
+//
+//	//pull the root page
+//	ixfileHandle.fileHandle.readPage(insert_dest, insert_entry_buffer);
+//
+//	//read leaf flag on the root page
+//	int is_leaf_page = 0;
+//	memcpy(&is_leaf_page, (char *) insert_entry_buffer + NODE_FLAG_BLOCK, 2);
+//
+//	while (is_leaf_page == 0) {
+//		parents.push_back(insert_dest);
+//
+//		searchIntermediateNode(key, insert_dest, insert_entry_buffer, type);
+//
+//		// pull and read the designated page into memory and refresh the leaf flag
+//		memset(insert_entry_buffer, 0, PAGE_SIZE);
+//		ixfileHandle.fileHandle.readPage(insert_dest, insert_entry_buffer);
+//		memcpy(&is_leaf_page, (char *) insert_entry_buffer + NODE_FLAG_BLOCK,
+//				2);
+//	}
+//
+//	//check if we are at leaf page
+//	cout << "is_leaf_page :" << is_leaf_page << endl;
+//
+//	// To insert into root node
+//	short free_space_of_page;
+//	short num_of_slots;
+//	int char_len;
+//	readOverHeads(key, type, insert_entry_buffer, free_space_of_page,
+//			num_of_slots, char_len);
+//
+//	//to check the free space and then decide if the key has to be inserted or the leaf node has to be split
+//	if (free_space_of_page >= (char_len + 8)) {
+//		insertIntoLeafPage(ixfileHandle, key, rid, type, insert_entry_buffer);//,
+//		//free_space_of_page, num_of_slots, char_len);
+////	}else{
+//		//split logic
+//	}
+//
+//	if (ixfileHandle.fileHandle.writePage(insert_dest, insert_entry_buffer) < 0)
+//		return -1;
+
+//	free(insert_entry_buffer);
+	return 0;
+}
+
+RC IndexManager::insertReccursion(unsigned page_num, const void *key,
+		IXFileHandle ixfileHandle, const RID &rid, int type,
+		void *prop_page_pointer, RID &prop_page_num, int &prop_key_len) {
+
+	void *insert_entry_buffer = calloc(4096, 1);
 
 	//pull the root page
-	ixfileHandle.fileHandle.readPage(insert_dest, insert_enrty_buffer);
+	ixfileHandle.fileHandle.readPage(page_num, insert_entry_buffer);
 
-	//read leaf flag on the root page
-	int is_leaf_page = 0;
-	memcpy(&is_leaf_page, (char *) insert_enrty_buffer + NODE_FLAG_BLOCK, 2);
-
-	while (is_leaf_page == 0) {
-		parents.push_back(insert_dest);
-
-		searchIntermediateNode(key, insert_dest, insert_enrty_buffer, type);
-
-		// pull and read the designated page into memory and refresh the leaf flag
-		memset(insert_enrty_buffer, 0, PAGE_SIZE);
-		ixfileHandle.fileHandle.readPage(insert_dest, insert_enrty_buffer);
-		memcpy(&is_leaf_page, (char *) insert_enrty_buffer + NODE_FLAG_BLOCK,
-				2);
-	}
-
-	//check if we are at leaf page
-	cout << "is_leaf_page :" << is_leaf_page << endl;
-
-	// To insert into root node
+	// Read overheads for the current page-> page_num
 	short free_space_of_page;
 	short num_of_slots;
 	int char_len;
-	readOverHeads(key, type, insert_enrty_buffer, free_space_of_page,
+	readOverHeads(key, type, insert_entry_buffer, free_space_of_page,
 			num_of_slots, char_len);
 
-	cout<<"num_of_slots before insert :"<<num_of_slots<<endl;
-	cout<<"free_space_of_page after insert :"<<free_space_of_page<<endl;
+	//read leaf flag on the root page
+	int is_leaf_page = 0;
+	memcpy(&is_leaf_page, (char *) insert_entry_buffer + NODE_FLAG_BLOCK, 2);
 
-	insertIntoLeafPage(ixfileHandle, key, rid, type, insert_enrty_buffer,
-			free_space_of_page, num_of_slots, char_len);
+	int page_ptr = 0;
+	if (is_leaf_page == 0) {
+		searchIntermediateNode(key, page_ptr, insert_entry_buffer, type);
+		insertReccursion(page_ptr, key, ixfileHandle, rid, type,
+				prop_page_pointer, prop_page_num, prop_key_len);
+		if (prop_key_len != -1) {
+			if (free_space_of_page > (prop_key_len + 4)) {
+				insertIntoIntermediatePage(ixfileHandle, prop_page_pointer,
+						prop_page_num.pageNum, type, insert_entry_buffer);
+				ixfileHandle.fileHandle.writePage(page_num,
+						insert_entry_buffer);
+				prop_key_len = -1;
+			} else {
 
-	if(ixfileHandle.fileHandle.writePage(insert_dest, insert_enrty_buffer)<0)return -1;
+				void *insert_key_pointer = calloc(prop_key_len, 1);
+				memcpy(insert_key_pointer, prop_page_pointer, prop_key_len);
+				RID insert_page_num_ptr;
+				insert_page_num_ptr.pageNum = prop_page_num.pageNum;
 
-	free(insert_enrty_buffer);//todo: have to fix double free caused here
+				//check with cout
+				char str1_key_Array[prop_key_len];
+				memcpy(&str1_key_Array, (char *) prop_page_pointer,
+						prop_key_len);
+				string str1_key(str1_key_Array, prop_key_len);
+				cout << "propagated key from leaf to intermediate:" << str1_key
+						<< endl;
+				cout << "propagated key length  :" << prop_key_len << endl;
+				cout << "propagated page number from leaf to intermediate::"
+						<< prop_page_num.pageNum << endl;
+
+				splitIntermediatePage(ixfileHandle, page_num,
+						insert_key_pointer, insert_page_num_ptr, type,
+						insert_entry_buffer, prop_page_pointer, prop_page_num,
+						prop_key_len);
+
+				//check with cout
+				char str_key_Array[prop_key_len];
+				memcpy(&str_key_Array, (char *) prop_page_pointer,
+						prop_key_len);
+				string str_key(str_key_Array, prop_key_len);
+				cout << "propagated key from intermediate :" << str_key << endl;
+				cout << "propagated key length  :" << prop_key_len << endl;
+				cout << "propagated page number from intermediate :"
+						<< prop_page_num.pageNum << endl;
+
+				unsigned root_node_page_num = readRootPage(
+						ixfileHandle.fileHandle);
+				if (page_num == root_node_page_num) {
+					void *root_page_buffer = calloc(4096, 1);
+
+					memcpy((char *) root_page_buffer, &page_num, 4);
+					memcpy((char *) root_page_buffer + 4, prop_page_pointer,
+							prop_key_len);
+					memcpy((char *) root_page_buffer + 4 + prop_key_len,
+							&prop_page_num, 4);
+
+					short root_free_space = PAGE_SIZE - 6 - PAGE_NUM_PTR_SIZE
+							- prop_key_len - PAGE_NUM_PTR_SIZE;
+					short root_node_entry_num = 1;
+					short leaf_flag = 0;
+
+					memcpy((char *) root_page_buffer + NODE_FLAG_BLOCK,
+							&leaf_flag, 2);
+					memcpy((char *) root_page_buffer + FREE_SPACE_BLOCK,
+							&root_free_space, 2);
+					memcpy((char *) root_page_buffer + NUM_OF_INDEX_BLOCK,
+							&root_node_entry_num, 2);
+
+					ixfileHandle.fileHandle.appendPage(root_page_buffer);
+					unsigned num_of_pages =
+							ixfileHandle.fileHandle.getNumberOfPages();
+					updateRootPage(ixfileHandle.fileHandle, num_of_pages);
+
+					free(root_page_buffer);
+				}
+
+				free(insert_key_pointer);
+			}
+		}
+	} else if (is_leaf_page == 1) {
+		if (free_space_of_page >= (char_len + 8)) {
+			insertIntoLeafPage(ixfileHandle, key, rid, type,
+					insert_entry_buffer);
+			ixfileHandle.fileHandle.writePage(page_num, insert_entry_buffer);
+			prop_key_len = -1;
+		} else {
+			splitLeafPage(ixfileHandle, page_num, key, rid, type,
+					insert_entry_buffer, prop_page_pointer, prop_page_num,
+					prop_key_len);
+
+			//check with cout
+			char str_key_Array[prop_key_len];
+			memcpy(&str_key_Array, (char *) prop_page_pointer, prop_key_len);
+			string str_key(str_key_Array, prop_key_len);
+			cout << "propagated key from leaf :" << str_key << endl;
+			cout << "propagated key length  :" << prop_key_len << endl;
+			cout << "propagated page number from leaf :"
+					<< prop_page_num.pageNum << endl;
+
+			//if the page number to be inserted was a root then create a new root and update
+			unsigned root_node_page_num = readRootPage(ixfileHandle.fileHandle);
+			if (page_num == root_node_page_num) {
+				void *root_page_buffer = calloc(4096, 1);
+
+				memcpy((char *) root_page_buffer, &page_num, 4);
+				memcpy((char *) root_page_buffer + 4, prop_page_pointer,
+						prop_key_len);
+				memcpy((char *) root_page_buffer + 4 + prop_key_len,
+						&prop_page_num.pageNum, 4);
+
+				short root_free_space = PAGE_SIZE - 6 - PAGE_NUM_PTR_SIZE
+						- prop_key_len - PAGE_NUM_PTR_SIZE;
+				short root_node_entry_num = 1;
+				short leaf_flag = 0;
+
+				memcpy((char *) root_page_buffer + NODE_FLAG_BLOCK, &leaf_flag,
+						2);
+				memcpy((char *) root_page_buffer + FREE_SPACE_BLOCK,
+						&root_free_space, 2);
+				memcpy((char *) root_page_buffer + NUM_OF_INDEX_BLOCK,
+						&root_node_entry_num, 2);
+
+				ixfileHandle.fileHandle.appendPage(root_page_buffer);
+				unsigned num_of_pages =
+						ixfileHandle.fileHandle.getNumberOfPages();
+				updateRootPage(ixfileHandle.fileHandle, num_of_pages);
+
+				free(root_page_buffer);
+			}
+		}
+	}
+	free(insert_entry_buffer);
 	return 0;
+}
+RC IndexManager::splitLeafPage(IXFileHandle &ixfileHandle, int insert_dest,
+		const void *key, const RID &rid, int type, void *input_leaf_buffer,
+		void *prop_key, RID &prop_page_num, int &prop_key_len) {
+
+	// Definition of useful page overheads
+	short free_space_of_page;
+	short num_of_slots;
+	int char_len;
+	readOverHeads(key, type, input_leaf_buffer, free_space_of_page,
+			num_of_slots, char_len);
+
+	void *right_page = calloc(4096, 1);		//new page mapping buffer
+
+	// Get the point to split the existing page at
+	int split_index_pos_num;
+	int split_page_offset = splitLeafSearch(input_leaf_buffer, num_of_slots,
+			type, split_index_pos_num);
+
+	// Manipulations to right page
+
+	// Calculate move length to move into right pointer and move half the records to a new page
+	int right_page_mov_len = PAGE_SIZE - 10 - free_space_of_page
+			- split_page_offset;
+	memmove((char *) right_page, (char *) input_leaf_buffer + split_page_offset,
+			right_page_mov_len);
+
+	short right_page_free_space = free_space_of_page + split_page_offset;//int to short?
+	short right_page_num_slots = num_of_slots - split_index_pos_num;
+	short is_leaf = 1;
+
+	// Copy and move the overheads to the new page
+	memcpy((char *) right_page + NEXT_PAGE_PTR,
+			(char *) input_leaf_buffer + NEXT_PAGE_PTR, 4);
+	memcpy((char *) right_page + NUM_OF_INDEX_BLOCK, &right_page_num_slots, 2);
+	memcpy((char *) right_page + FREE_SPACE_BLOCK, &right_page_free_space, 2);
+	memcpy((char *) right_page + NODE_FLAG_BLOCK, &is_leaf, 2);
+
+//	// Create a new page for the split page
+//	ixfileHandle.fileHandle.appendPage(right_page);
+//	prop_page_num.pageNum = ixfileHandle.fileHandle.getNumberOfPages();
+
+	// Modify/update old page data
+	free_space_of_page = free_space_of_page + right_page_mov_len;
+	num_of_slots = split_index_pos_num;
+
+//	memcpy((char *) input_leaf_buffer + NEXT_PAGE_PTR, &prop_page_num.pageNum,
+//			4);
+	memcpy((char *) input_leaf_buffer + NUM_OF_INDEX_BLOCK, &num_of_slots, 2);
+	memcpy((char *) input_leaf_buffer + FREE_SPACE_BLOCK, &free_space_of_page,
+			2);
+
+	// Return first key of new page
+	prop_key_len = 0;
+	if (type == 2)
+		memcpy(&prop_key_len, (char *) right_page, 4);
+	prop_key_len += 4;
+	memcpy(prop_key, right_page, prop_key_len);
+
+	//	To insert the actual key the insert was called for
+	int insert_result = compareEntryKeyIndex(key, prop_key, type, prop_key_len);
+	if (insert_result == 1) {
+		//insert in existing page
+		insertIntoLeafPage(ixfileHandle, key, rid, type, input_leaf_buffer);
+	} else {
+		//insert in new page
+		insertIntoLeafPage(ixfileHandle, key, rid, type, right_page);
+	}
+
+	// Create a new page for the split page
+	ixfileHandle.fileHandle.appendPage(right_page);
+	prop_page_num.pageNum = ixfileHandle.fileHandle.getNumberOfPages();
+
+	memcpy((char *) input_leaf_buffer + NEXT_PAGE_PTR, &prop_page_num.pageNum,
+			4);
+
+	// Write the buffer back to leaf page
+	ixfileHandle.fileHandle.writePage(insert_dest, input_leaf_buffer);
+
+	free(right_page);
+	return 0; //return offset of split in input buffer
+}
+
+RC IndexManager::splitLeafSearch(void *buffer, short num_of_slots, int type,
+		int &pos) {
+
+	int buffer_offset = 0;
+	int entryI;
+	float entryF;
+	string entryV;
+
+	for (int i = 1; i <= (int) num_of_slots; i++) {
+
+		int one_index_len = 0;
+
+		if (i == (int) num_of_slots / 2) {
+
+			if (type == 2) {
+				memcpy(&one_index_len, (char *) buffer + buffer_offset, 4);
+
+				char Str1_array[one_index_len];
+				memcpy(&Str1_array, (char *) buffer + buffer_offset + 4,
+						one_index_len);
+
+				string Str1(Str1_array, one_index_len);
+				entryV = Str1;
+
+			} else if (type == 1) {
+
+				memcpy(&entryF, (char *) buffer + buffer_offset, 4);
+
+			} else {
+
+				memcpy(&entryI, (char *) buffer + buffer_offset, 4);
+
+			}
+
+			one_index_len += 4;	//for int and float and Len indicator for varchar
+
+		} else if (i > (int) num_of_slots / 2) {
+
+			if (type == 2) {
+
+				memcpy(&one_index_len, (char *) buffer + buffer_offset, 4);
+
+				char Str2_array[one_index_len];
+
+				memcpy(&Str2_array, (char *) buffer + buffer_offset + 4,
+						one_index_len);
+				string Str2(Str2_array, one_index_len);
+
+				if (entryV != Str2) {
+					pos = i - 1;
+					break;
+				}
+
+			} else if (type == 1) {
+				float break_entryF = 0;
+				memcpy(&break_entryF, (char *) buffer + buffer_offset, 4);
+
+				if (entryF != break_entryF) {
+					pos = i - 1;
+					break;
+				}
+			} else {
+				int break_entryI = 0;
+				memcpy(&break_entryI, (char *) buffer + buffer_offset, 4);
+
+				if (entryI != break_entryI) {
+					pos = i - 1;
+					break;
+				}
+			}
+
+			one_index_len += 4;	//for int and float and Len indicator for varchar
+
+		} else {
+
+			//to compute offset to skip to next key
+			if (type == 2) {
+				memcpy(&one_index_len, (char *) buffer + buffer_offset, 4);
+				one_index_len += 4;		//char len of varchar and int
+			} else {
+				one_index_len = 4;		//for int and float
+			}
+		}
+
+		//to compute offset to skip to next page number
+		one_index_len += RID_BLOCK_SIZE;
+		buffer_offset += one_index_len;
+
+	}
+
+	return buffer_offset;
+}
+
+RC IndexManager::splitIntermediatePage(IXFileHandle &ixfileHandle,
+		int insert_dest, const void *key, const RID &rid, int type,
+		void *input_buffer, void *prop_key, RID &prop_page_num,
+		int &prop_key_len) {
+
+	// Definition of page overheads
+	short free_space_of_page;
+	short num_of_slots;
+	int char_len;
+	readOverHeads(key, type, input_buffer, free_space_of_page, num_of_slots,
+			char_len);
+	void *right_page = calloc(4096, 1);		//new page mapping buffer
+
+	// Get the point to split the existing page at
+	int split_index_pos_num;
+	int split_page_offset = splitIntermediateSearch(input_buffer, num_of_slots,
+			type, split_index_pos_num);
+
+	// Read the first index entry on left page and evict it from buffer and remaining push to right pafe and
+	//accordingly update the free space and num of indices carefully.
+	// Return the supposed first key of new page
+	prop_key_len = 0;
+	if (type == 2) {
+		memcpy(&prop_key_len, (char *) input_buffer + split_page_offset, 4);
+	}
+	prop_key_len += 4;
+	memcpy(prop_key, (char *) input_buffer + split_page_offset, prop_key_len);
+
+	//do manipulations to right page
+
+	// Calculate move length to move data into right page and move half the records to a new page
+	int right_page_mov_len = PAGE_SIZE - 6 - free_space_of_page
+			- split_page_offset - prop_key_len;
+	memmove((char *) right_page,
+			(char *) input_buffer + split_page_offset + prop_key_len,
+			right_page_mov_len);
+
+	short right_page_free_space = free_space_of_page + split_page_offset
+			+ prop_key_len;
+	short right_page_num_slots = num_of_slots - split_index_pos_num - 1;
+	short is_leaf = 0;
+
+	// Copy and move the overheads to the new page
+	memcpy((char *) right_page + NUM_OF_INDEX_BLOCK, &right_page_num_slots, 2);
+	memcpy((char *) right_page + FREE_SPACE_BLOCK, &right_page_free_space, 2);
+	memcpy((char *) right_page + NODE_FLAG_BLOCK, &is_leaf, 2);
+
+	// Create a new page for the split page
+//	ixfileHandle.fileHandle.appendPage(right_page);
+//	prop_page_num.pageNum = ixfileHandle.fileHandle.getNumberOfPages();
+
+	// Modify/update old page data
+	free_space_of_page = free_space_of_page + right_page_mov_len;
+	num_of_slots = split_index_pos_num;
+
+	memcpy((char *) input_buffer + NUM_OF_INDEX_BLOCK, &num_of_slots, 2);
+	memcpy((char *) input_buffer + FREE_SPACE_BLOCK, &free_space_of_page, 2);
+
+	// Write the data back to leaf page
+//	ixfileHandle.fileHandle.writePage(insert_dest, input_buffer);
+
+	//	To insert the actual key the insert was called for
+	int insert_result = compareEntryKeyIndex(key, prop_key, type, prop_key_len);
+	if (insert_result == 1) {
+		//insert in existing page
+		insertIntoIntermediatePage(ixfileHandle, key, rid.pageNum, type,
+				input_buffer);
+	} else {
+		//insert in new page
+		insertIntoIntermediatePage(ixfileHandle, key, rid.pageNum, type,
+				right_page);
+	}
+
+	// Create a new page for the split page
+	ixfileHandle.fileHandle.appendPage(right_page);
+	prop_page_num.pageNum = ixfileHandle.fileHandle.getNumberOfPages();
+
+	// Write the buffer back to leaf page
+	ixfileHandle.fileHandle.writePage(insert_dest, input_buffer);
+
+	free(right_page);
+	return 0;	//return offset of split in input buffer
+}
+
+RC IndexManager::splitIntermediateSearch(void *buffer, short num_of_slots,
+		int type, int &pos) {
+
+	int buffer_offset = 4;
+	for (int i = 0; i < (int) num_of_slots / 2; i++) {
+		int one_index_len = 0;
+
+		//to compute offset to skip to next key
+		if (type == 2) {
+			memcpy(&one_index_len, (char *) buffer + buffer_offset, 4);
+		}
+		one_index_len += 4;	//for int and float and Len indicator for varchar
+		one_index_len += PAGE_NUM_PTR_SIZE;
+		buffer_offset += one_index_len;
+	}
+
+	pos = (int) num_of_slots / 2;
+	return buffer_offset;
 }
 
 RC IndexManager::readOverHeads(const void *key, int type, void *buffer,
@@ -221,13 +664,28 @@ RC IndexManager::readOverHeads(const void *key, int type, void *buffer,
 	} else {
 		char_len = 4;
 	}
-
 	return 0;
 }
 
 RC IndexManager::insertIntoIntermediatePage(IXFileHandle &ixfileHandle,
-		const void *key, PageNum page_ptr, int type, void *buffer,
-		short free_space_of_page, short num_of_slots, int char_len) {//char_len =4 for real and int and 4+var_char for others has to be passed along
+		const void *key, PageNum page_ptr, int type, void *buffer) {	//,
+	//short free_space_of_page, short num_of_slots, int char_len) {//char_len =4 for real and int and 4+var_char for others has to be passed along
+
+	//definition of useful page overheads
+	short free_space_of_page;
+	short num_of_slots;
+	int char_len;
+	readOverHeads(key, type, buffer, free_space_of_page, num_of_slots,
+			char_len);
+
+	//cout checks
+	cout << "num_of_indexes before leaf insert :" << num_of_slots << endl;
+	cout << "free_space before leaf insert :" << free_space_of_page << endl;
+
+	//return if the node doesn't have space to fit in the current page
+//	if (free_space_of_page < (char_len + 4)) {
+//		return -1;
+//	}
 
 	//offset where the insert should happen
 	int page_num_ptr = 0;
@@ -235,13 +693,13 @@ RC IndexManager::insertIntoIntermediatePage(IXFileHandle &ixfileHandle,
 			buffer, type);
 
 	//find length and move right
-	int move_len = PAGE_SIZE - 6 - free_space_of_page - buffer_offset_to_insert;//diff between last data  offset - place to be inserted
+	int move_len = PAGE_SIZE - 6 - free_space_of_page - buffer_offset_to_insert;//difference between last data offset - place to be inserted
 	memmove(
 			(char*) buffer + buffer_offset_to_insert + char_len
 					+ PAGE_NUM_PTR_SIZE,
 			(char*) buffer + buffer_offset_to_insert, move_len);
 
-	//update the buffer with new key and page ptr to be inserted
+	//update the buffer with new key and page pointer to be inserted
 	memcpy((char*) buffer + buffer_offset_to_insert, (char*) key, char_len);
 	memcpy((char*) buffer + buffer_offset_to_insert + char_len, &page_ptr,
 	PAGE_NUM_PTR_SIZE);
@@ -254,12 +712,33 @@ RC IndexManager::insertIntoIntermediatePage(IXFileHandle &ixfileHandle,
 	free_space_of_page = free_space_of_page - PAGE_NUM_PTR_SIZE - char_len;
 	memcpy(&free_space_of_page, (char *) buffer + FREE_SPACE_BLOCK, 2);
 
+	//cout checks
+	cout << "num_of_indexes after insert :" << num_of_slots << endl;
+	cout << "free_space after  insert :" << free_space_of_page << endl;
+
 	return 0;
 }
 
 RC IndexManager::insertIntoLeafPage(IXFileHandle &ixfileHandle, const void *key,
-		const RID &rid, int type, void *buffer, short free_space_of_page,
-		short num_of_slots, int char_len) {	//char_len =4 for int/real n 4+lenght of varchar for varchar
+		const RID &rid, int type, void *buffer) {//, short free_space_of_page,
+	//short num_of_slots, int char_len) {	//char_len =4 for int/real n 4+lenght of varchar for varchar
+
+	//definition of useful page overheads
+	short free_space_of_page;
+	short num_of_slots;
+	int char_len;
+	readOverHeads(key, type, buffer, free_space_of_page, num_of_slots,
+			char_len);
+
+	//cout checks
+	cout << "num_of_slots before leaf insert :" << num_of_slots << endl;
+	cout << "free_space_of_page before leaf insert :" << free_space_of_page
+			<< endl;
+
+	//return if the node doesn't have space to fit in the current page
+//	if (free_space_of_page < (char_len + 8)) {
+//		return -1;
+//	}
 
 	//search the position where the key has to be inserted
 	int buffer_offset_to_insert = searchLeafNode(key, buffer, type);
@@ -279,19 +758,23 @@ RC IndexManager::insertIntoLeafPage(IXFileHandle &ixfileHandle, const void *key,
 	//update the number of indexes slot on the page
 	num_of_slots += 1;
 	memcpy((char *) buffer + NUM_OF_INDEX_BLOCK, &num_of_slots, 2);
-	cout<<"num_of_slots after insert :"<<num_of_slots<<endl;
 
 	//update the newly available free space on the page
 	free_space_of_page = free_space_of_page - RID_BLOCK_SIZE - char_len;
-	memcpy((char*) buffer + FREE_SPACE_BLOCK,&free_space_of_page, 2);
-	cout<<"free_space_of_page after insert :"<<free_space_of_page<<endl;
+	memcpy((char*) buffer + FREE_SPACE_BLOCK, &free_space_of_page, 2);
+
+	//cout checks
+	cout << "num_of_slots after leaf insert :" << num_of_slots << endl;
+	cout << "free_space_of_page after leaf insert :" << free_space_of_page
+			<< endl;
+
 	return 0;
 }
 
 RC IndexManager::deleteEntry(IXFileHandle &ixfileHandle,
 		const Attribute &attribute, const void *key, const RID &rid) {
 
-	int result =-1;
+	int result = -1;
 	cout << "No. of pages :" << ixfileHandle.fileHandle.getNumberOfPages()
 			<< endl;
 
@@ -333,11 +816,12 @@ RC IndexManager::deleteEntry(IXFileHandle &ixfileHandle,
 	readOverHeads(key, type, buffer, free_space_of_page, num_of_slots,
 			char_len);
 
-	if(num_of_slots !=0)
-	result = deleteEntryInLeaf(ixfileHandle, key, rid, type, buffer, free_space_of_page,
-			num_of_slots, char_len);
+	if (num_of_slots != 0)
+		result = deleteEntryInLeaf(ixfileHandle, key, rid, type, buffer,
+				free_space_of_page, num_of_slots, char_len);
 
-	if(ixfileHandle.fileHandle.writePage(insert_dest, buffer)<0)return -1;
+	if (result == 0)
+		ixfileHandle.fileHandle.writePage(insert_dest, buffer);
 
 	free(buffer);
 	return result;
@@ -347,7 +831,7 @@ RC IndexManager::deleteEntryInLeaf(IXFileHandle &ixfileHandle, const void *key,
 		const RID &rid, int type, void *buffer, short free_space_of_page,
 		short num_of_slots, int char_key_len) {	//char_key_len =4 for int/real n 4+lenght of varchar for varchar
 
-	int result =-1;
+	int result = -1;
 
 	//corner case test for intermediate page
 	short flag;
@@ -357,9 +841,10 @@ RC IndexManager::deleteEntryInLeaf(IXFileHandle &ixfileHandle, const void *key,
 	}
 
 	int buffer_offset_to_delete = 0;	//searchLeafNode(key, buffer, type);
+	int char_len = 0;
 	void *comparisonEntry = calloc(4096, 1);
 	for (int i = 0; i < (int) num_of_slots; i++) {
-		int char_len = 0;
+		char_len = 0;
 
 		//to compare the key if var char type ==2 else compare 4 bytes
 		if (type == 2) {
@@ -376,6 +861,18 @@ RC IndexManager::deleteEntryInLeaf(IXFileHandle &ixfileHandle, const void *key,
 		}
 		if (compareDeleteEntryKeyRID(key, comparisonEntry, rid, type, char_len)
 				== 1) {	//check if key Parameter n rid are matched
+			if (type == 2) {
+				memcpy((char *) buffer + buffer_offset_to_delete + 4 + char_len,
+						&result, 4);
+				memcpy(
+						(char *) buffer + buffer_offset_to_delete + 4 + char_len
+								+ 4, &result, 4);
+			} else {
+				memcpy((char *) buffer + buffer_offset_to_delete + 4, &result,
+						4);
+				memcpy((char *) buffer + buffer_offset_to_delete + 8, &result,
+						4);
+			}
 			result = 0;
 			break;
 		}
@@ -387,22 +884,80 @@ RC IndexManager::deleteEntryInLeaf(IXFileHandle &ixfileHandle, const void *key,
 
 	}
 
+//	if (result == 0) {
+
 	//find length and move right
-	int move_len = PAGE_SIZE - 10 - free_space_of_page - buffer_offset_to_delete
-			- char_key_len - RID_BLOCK_SIZE;//diff between last data  offset - offset of next index place to be deleted
-	memmove((char*) buffer + buffer_offset_to_delete,
-			(char*) buffer + buffer_offset_to_delete + char_key_len
-					+ RID_BLOCK_SIZE, move_len);
+//		int move_len = PAGE_SIZE - 10 - free_space_of_page
+//				- buffer_offset_to_delete - char_len - RID_BLOCK_SIZE;//diff between last data  offset - offset of next index place to be deleted
+//		memmove((char*) buffer + buffer_offset_to_delete,
+//				(char*) buffer + buffer_offset_to_delete + char_len	//char_key_len
+//						+ RID_BLOCK_SIZE, move_len);
 
 	//update the number of indexes slot on the page
-	num_of_slots -= 1;
-	memcpy((char *) buffer + NUM_OF_INDEX_BLOCK, &num_of_slots, 2);
+//		num_of_slots -= 1;
+//		memcpy((char *) buffer + NUM_OF_INDEX_BLOCK, &num_of_slots, 2);
 
 	//update the newly available free space on the page
-	free_space_of_page = free_space_of_page + RID_BLOCK_SIZE + char_key_len;
-	memcpy(&free_space_of_page, (char*) buffer + FREE_SPACE_BLOCK, 2);
+//		free_space_of_page = free_space_of_page + RID_BLOCK_SIZE + char_len;
+//		memcpy(&free_space_of_page, (char*) buffer + FREE_SPACE_BLOCK, 2);
+//	}
 
 	free(comparisonEntry);
+	return result;
+}
+
+RC IndexManager::compareDeleteEntryKeyRID(const void *key,
+		void *comparisonEntry, const RID &rid, int type, int compare_len) {
+	int result = 0;
+
+	if (type == 0) {
+
+		int compare1 = 0;
+		memcpy(&compare1, (char *) comparisonEntry, compare_len);
+
+		int compare_key = *(int *) key;
+		result = (compare_key == compare1) ? 1 : 0;
+
+	} else if (type == 1) {
+
+		float compare1 = 0;
+		memcpy(&compare1, (char *) comparisonEntry, compare_len);
+
+		float compare_key = *(float *) key;
+		result = (compare_key == compare1) ? 1 : 0;
+
+	} else if (type == 2) {
+
+		char str1_Array[compare_len];
+		memcpy(&str1_Array, (char *) comparisonEntry, compare_len); //copy the varchar entry into string format
+		string str1(str1_Array, compare_len); //convert the char array to string
+
+		int str2_len = 0; //parameter key
+		memcpy(&str2_len, (char *) key, 4);
+
+		char str2_Array[str2_len];
+		memcpy(&str2_Array, (char *) key + 4, str2_len); //copy the key into string format
+		string str2_Key(str2_Array, str2_len); //convert the char array to string
+
+		result = (str2_Key == str1) ? 1 : 0;
+	}
+
+	//check if RIDS of the given key to delete matches with the one of the index
+	if (result == 1) {
+//		unsigned compare1_page_num = -1, compare1_slot_num = -1;
+//
+//		memcpy(&compare1_page_num, (char *) comparisonEntry + compare_len, 4);
+//		memcpy(&compare1_slot_num, (char *) comparisonEntry + compare_len + 4,
+//				4);
+//
+//		result =
+//				((compare1_page_num == rid.pageNum)
+//						&& (compare1_slot_num == rid.slotNum)) ? 1 : 0;
+		result =
+				(memcmp((char *) comparisonEntry + compare_len, &rid, 8) == 0) ?
+						1 : 0;
+	}
+
 	return result;
 }
 
@@ -501,7 +1056,7 @@ RC IndexManager::searchLeafNode(const void *key, void *buffer, int type) {
 	free(comparisonEntry);
 	return buffer_offset;
 	//in the calling function check for value for offset based on which decide to insert or split and insert
-	//-1 implies no keys exists
+	//0 implies no keys exists
 	//4086 implies the page is full
 }
 
@@ -541,59 +1096,6 @@ RC IndexManager::compareEntryKeyIndex(const void *key, void *comparisonEntry,
 		result = (str2_Key < str1) ? 1 : 0;
 
 	}
-	return result;
-}
-
-RC IndexManager::compareDeleteEntryKeyRID(const void *key,
-		void *comparisonEntry, const RID &rid, int type, int compare_len) {
-	int result = 0;
-
-	if (type == 0) {
-
-		int compare1 = 0;
-		memcpy(&compare1, (char *) comparisonEntry, compare_len);
-
-		int compare_key = *(int *) key;
-		result = (compare_key == compare1) ? 1 : 0;
-
-	} else if (type == 1) {
-
-		float compare1 = 0;
-		memcpy(&compare1, (char *) comparisonEntry, compare_len);
-
-		float compare_key = *(float *) key;
-		result = (compare_key == compare1) ? 1 : 0;
-
-	} else if (type == 2) {
-
-		char str1_Array[compare_len];
-		memcpy(&str1_Array, (char *) comparisonEntry, compare_len); //copy the varchar entry into string format
-		string str1(str1_Array, compare_len); //convert the char array to string
-
-		int str2_len = 0; //parameter key
-		memcpy(&str2_len, (char *) key, 4);
-
-		char str2_Array[str2_len];
-		memcpy(&str2_Array, (char *) key + 4, str2_len); //copy the key into string format
-		string str2_Key(str2_Array, str2_len); //convert the char array to string
-
-		result = (str2_Key == str1) ? 1 : 0;
-
-	}
-
-	//check if RIDS of the given key to delete matches with the one of the index
-	if (result == 1) {
-		unsigned compare1_page_num = -1, compare1_slot_num = -1;
-
-		memcpy(&compare1_page_num, (char *) comparisonEntry + compare_len, 4);
-		memcpy(&compare1_slot_num, (char *) comparisonEntry + compare_len + 4,
-				4);
-
-		result =
-				((compare1_page_num == rid.pageNum)
-						&& (compare1_slot_num == rid.slotNum)) ? 1 : 0;
-	}
-
 	return result;
 }
 

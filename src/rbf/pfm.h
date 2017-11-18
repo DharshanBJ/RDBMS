@@ -52,7 +52,8 @@ public:
     string getPageFileName();                                             //Get the FileName of the file Handle
     RC setPageFilePtr(FILE* ptr);                                         //Set file pointer to the handle
     RC setPageFileName(const string &name);                               //Set file Name to the Handle
-    RC writeRootPageNumber(int pageNum);
+    RC writeRootPageNumber(unsigned pageNum);							  //hidden page root page number store write
+    RC readRootPageNumber();											  //hidden page root number read
 private:
     string fileName;
     FILE* file_Ptr;

@@ -260,7 +260,7 @@ unsigned FileHandle::getNumberOfPages()
 
 //for IX
 //add root pageNum write
-RC FileHandle::writeRootPageNumber(int pageNum){
+RC FileHandle::writeRootPageNumber(unsigned pageNum){
     FILE* file = getPageFilePtr();
     int offset = 3;
     fseek(file, offset*4, SEEK_SET);
@@ -270,6 +270,14 @@ RC FileHandle::writeRootPageNumber(int pageNum){
     return 0;
 }
 
+RC FileHandle::readRootPageNumber(){
+    FILE* file = getPageFilePtr();
+    int offset = 3;
+    fseek(file, offset*4, SEEK_SET);
+    int val = 0;
+    fread(&val, sizeof(int), 1, file);
+    return val;
+}
 
 RC getCounterValues(FILE* file, int offset){
     if(offset == 0){
