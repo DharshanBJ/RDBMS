@@ -15,6 +15,10 @@ IndexManager* IndexManager::instance() {
 	return _index_manager;
 }
 
+RC searchIntermediateNode(const void *key, int &pagePtr, void *buffer,
+			int type);
+RC compareEntryKeyIndex(const void *key, void *comparisonEntry, int type,
+			int compare_len);
 IndexManager::IndexManager() {
 }
 
@@ -999,7 +1003,7 @@ RC IndexManager::compareDeleteEntryKeyRID(const void *key,
 	return result;
 }
 
-RC IndexManager::searchIntermediateNode(const void *key, int &pagePtr,
+RC searchIntermediateNode(const void *key, int &pagePtr,
 		void *buffer, int type) {
 
 	//corner case test for intermediate page
@@ -1109,7 +1113,7 @@ RC IndexManager::searchLeafNode(const void *key, void *buffer, int type) {
 	//4086 implies the page is full
 }
 
-RC IndexManager::compareEntryKeyIndex(const void *key, void *comparisonEntry,
+RC compareEntryKeyIndex(const void *key, void *comparisonEntry,
 		int type, int compare_len) {
 	int result = 0;
 
