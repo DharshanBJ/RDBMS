@@ -56,7 +56,7 @@ public:
 			PageNum left_child_page_num);
 
 	//cout checks
-	RC readRootPage(IXFileHandle &ixfileHandle); //to read root page num
+//	RC readRootPage(IXFileHandle &ixfileHandle); //to read root page num
 	RC printPage(IXFileHandle &ixfileHandle, int pageNum,const void *key);
 protected:
 	IndexManager();
@@ -115,14 +115,14 @@ public:
     RC getNextEntry(RID &rid, void *key);
     
     //added
-    RC scanLeafNodes(void * buffer,const void *lowkey,const void *highkey,bool lowkeyinclusive,bool highkeyinclusive,const Attribute &attribute,RID &rid, void *key);
+    RC scanLeafNodes(void * buffer,const void *lowkey,const void *highkey,bool lowkeyinclusive,bool highkeyinclusive,const AttrType attrType,RID &rid, void *key);
     
     // Terminate index scan
     RC close();
     
     IXFileHandle *ixfileHandle;
     
-    Attribute attribute;
+    AttrType attrType;
     
     PageNum currentPageNum;
     int currentOffset;
