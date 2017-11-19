@@ -104,26 +104,39 @@ private:
 
 class IX_ScanIterator {
 public:
-
-	// Constructor
-	IX_ScanIterator();
-
-	// Destructor
-	~IX_ScanIterator();
-
-	// Get next matching entry
-	RC getNextEntry(RID &rid, void *key);
-
-	//added
-	RC scanLeafNodes(void * buffer, const void *lowkey, const void *highkey,
-			bool lowkeyinclusive, bool highkeyinclusive,
-			const Attribute &attribute, RID &rid, void *key);
-
-	// Terminate index scan
-	RC close();
+    
+    // Constructor
+    IX_ScanIterator();
+    
+    // Destructor
+    ~IX_ScanIterator();
+    
+    // Get next matching entry
+    RC getNextEntry(RID &rid, void *key);
+    
+    //added
+    RC scanLeafNodes(void * buffer,const void *lowkey,const void *highkey,bool lowkeyinclusive,bool highkeyinclusive,const Attribute &attribute,RID &rid, void *key);
+    
+    // Terminate index scan
+    RC close();
+    
+    IXFileHandle *ixfileHandle;
+    
+    Attribute attribute;
+    
+    PageNum currentPageNum;
+    int currentOffset;
+    
+    bool lowKeyInclusive;
+    bool highKeyInclusive;
+    
+    const void *lowKey;
+    const void *highKey;
 private:
-
+    
+    
 };
+
 
 class IXFileHandle {
 public:
