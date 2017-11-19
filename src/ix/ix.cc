@@ -23,83 +23,86 @@ IndexManager::~IndexManager() {
 }
 
 RC IndexManager::createFile(const string &fileName) {
+	PagedFileManager *pfm = PagedFileManager::instance();
 	RC result = pfm->createFile(fileName);
 
-	// failed to create a file
-	if (result < 0)
-		return result;
-
-	// Open up the file so we can initialize it with some data
-	IXFileHandle ixfileHandle;
-	int res = pfm->openFile(fileName, ixfileHandle.fileHandle);
-	if (res < 0)
-		return res;
-
-	// Create the root<leaf> page, mark it as a leaf, it's page 1
-	//create a buffer for page
-	void *new_page_buffer = calloc(PAGE_SIZE, 1);
-
-	res = newPage(ixfileHandle.fileHandle, new_page_buffer, 1, true, 0, 0);
-
-	free(new_page_buffer);
-	if (res < 0)
-		return res;
-
-	// Store the new page to page 0
-	res = updateRootPage(ixfileHandle.fileHandle, 1);
-	if (res < 0)
-		return res;
-
-	// When done-> close the file
-	res = pfm->closeFile(ixfileHandle.fileHandle);
-	if (res < 0)
-		return res;
+//	// failed to create a file
+//	if (result < 0)
+//		return result;
+//
+//	// Open up the file so we can initialize it with some data
+//	int res = pfm->openFile(fileName, ixfileHandle->fileHandle);
+//	if (res < 0)
+//		return res;
+//
+//	// Create the root<leaf> page, mark it as a leaf, it's page 1
+//	//create a buffer for page
+//	void *new_page_buffer = calloc(PAGE_SIZE, 1);
+//
+//	res = newPage(ixfileHandle->fileHandle, new_page_buffer, 1, true, 0, 0);
+//
+//	free(new_page_buffer);
+//	if (res < 0)
+//		return res;
+//
+//	// Store the new page to page 0
+//	res = updateRootPage(ixfileHandle->fileHandle, 1);
+//	if (res < 0)
+//		return res;
+//
+//	// When done-> close the file
+//	res = pfm->closeFile(ixfileHandle->fileHandle);
+//	if (res < 0)
+//		return res;
 
 	return result;
 }
 
 RC IndexManager::destroyFile(const string &fileName) {
+	PagedFileManager *pfm = PagedFileManager::instance();
 	RC result = pfm->destroyFile(fileName);
 	return result;
 }
 
 RC IndexManager::openFile(const string &fileName, IXFileHandle &ixfileHandle) {
+	PagedFileManager *pfm = PagedFileManager::instance();
 	RC result = pfm->openFile(fileName, ixfileHandle.fileHandle);
 	return result;
 }
 
 RC IndexManager::closeFile(IXFileHandle &ixfileHandle) {
+	PagedFileManager *pfm = PagedFileManager::instance();
 	RC result = pfm->closeFile(ixfileHandle.fileHandle);
 	return result;
 
 }
 
-RC IndexManager::updateRootPage(FileHandle& fileHandle,
+RC IndexManager::updateRootPage(IXFileHandle &ixfileHandle,
 		unsigned root_page_num) {
 
 	//update the root page number in the hidden page0
-	fileHandle.writeRootPageNumber(root_page_num);
+	ixfileHandle.fileHandle.writeRootPageNumber(root_page_num);
 	return 0;
 }
 
-RC IndexManager::readRootPage(FileHandle& fileHandle) {
-	int root_page_num = 1;
-	root_page_num = fileHandle.readRootPageNumber();
+RC IndexManager::readRootPage(IXFileHandle &ixfileHandle) {
+	int root_page_num = ixfileHandle.fileHandle.readRootPageNumber();
 	return root_page_num;
 }
 
-RC IndexManager::newPage(FileHandle& fileHandle, void *new_page_buffer,
+RC IndexManager::newPage(IXFileHandle &ixfileHandle, void *new_page_buffer,
 		PageNum page_num, bool is_leaf, PageNum next_leaf_page_num,
 		PageNum left_child_page_num) {
 
-	const unsigned currentNumPages = fileHandle.getNumberOfPages();
+	const unsigned currentNumPages = ixfileHandle.fileHandle.getNumberOfPages();
 
 	int leftChild = (int) left_child_page_num;
 	short isLeafPage = (short) (is_leaf ? 1 : 0);
 	short freeSpace = 0;
 	short numSlots = 0;
-	int next_page_num = is_leaf ? (int) next_leaf_page_num : -1;
+	int next_page_num = -1;//is_leaf ? (int) next_leaf_page_num : -1;
 
+	int page_no=0;
 	//create a buffer for page
 
 	//prepare the buffer with footer values
@@ -119,16 +122,27 @@ RC IndexManager::newPage(FileHandle& fileHandle, void *new_page_buffer,
 	int res = 0;
 
 	if (page_num <= currentNumPages) { //check if < | <= makes sense
-		res = fileHandle.writePage(page_num, new_page_buffer);
+		res = ixfileHandle.fileHandle.writePage(page_num, new_page_buffer);
 		if (res < 0)
 			cout << "File->write page at new page() failed" << endl;
 
 	} else { //append page
-		res = fileHandle.appendPage(new_page_buffer);
+		//cout checks
+//		memcpy( &isLeafPage, (char *) new_page_buffer + NODE_FLAG_BLOCK,2);
+//		freeSpace = 4096 - 10; //10 overhead bytes at foot of page for leaf nodes and 4 byte left child pointer and 6 overhead footer of non leaf page
+//		memcpy( &freeSpace, (char *) new_page_buffer + FREE_SPACE_BLOCK,2);
+//		memcpy( &numSlots, (char *) new_page_buffer + NUM_OF_INDEX_BLOCK,2);
+//
+//		cout<<"isLeafPage :"<<isLeafPage<<endl;
+//		cout<<"freeSpace :"<<freeSpace<<endl;
+//		cout<<"numSlots :"<<numSlots<<endl;
+
+		res = ixfileHandle.fileHandle.appendPage(new_page_buffer);
+		page_no = ixfileHandle.fileHandle.getNumberOfPages();
 		if (res < 0)
 			cout << "File->append page at new page() failed" << endl;
 	}
-	return 0;
+	return page_no;
 }
 
 RC IndexManager::insertEntry(IXFileHandle &ixfileHandle,
@@ -163,7 +177,21 @@ RC IndexManager::insertEntry(IXFileHandle &ixfileHandle,
 //	std::vector<int> parents;
 
 	// Traverse down the tree to the leaf, using non-leaves along the way
-	int insert_dest = readRootPage(ixfileHandle.fileHandle);
+	int insert_dest = readRootPage(ixfileHandle);
+
+	if(insert_dest == 0){
+		// Create the root<leaf> page, mark it as a leaf, it's page 1
+		void *new_page_buffer = calloc(PAGE_SIZE, 1);
+
+		unsigned page_no = newPage(ixfileHandle, new_page_buffer, 1, true, 0, 0);
+
+		free(new_page_buffer);
+
+		// Store the new page to page 0
+		updateRootPage(ixfileHandle, page_no);
+	}
+
+	insert_dest = readRootPage(ixfileHandle);
 
 	RID prop_page_num;
 	int prop_key_len = 0;
@@ -221,7 +249,7 @@ RC IndexManager::insertEntry(IXFileHandle &ixfileHandle,
 }
 
 RC IndexManager::insertReccursion(unsigned page_num, const void *key,
-		IXFileHandle ixfileHandle, const RID &rid, int type,
+		IXFileHandle &ixfileHandle, const RID &rid, int type,
 		void *prop_page_pointer, RID &prop_page_num, int &prop_key_len) {
 
 	void *insert_entry_buffer = calloc(4096, 1);
@@ -237,7 +265,7 @@ RC IndexManager::insertReccursion(unsigned page_num, const void *key,
 			num_of_slots, char_len);
 
 	//read leaf flag on the root page
-	int is_leaf_page = 0;
+	short is_leaf_page =0;
 	memcpy(&is_leaf_page, (char *) insert_entry_buffer + NODE_FLAG_BLOCK, 2);
 
 	int page_ptr = 0;
@@ -260,15 +288,15 @@ RC IndexManager::insertReccursion(unsigned page_num, const void *key,
 				insert_page_num_ptr.pageNum = prop_page_num.pageNum;
 
 				//check with cout
-				char str1_key_Array[prop_key_len];
-				memcpy(&str1_key_Array, (char *) prop_page_pointer,
-						prop_key_len);
-				string str1_key(str1_key_Array, prop_key_len);
-				cout << "propagated key from leaf to intermediate:" << str1_key
-						<< endl;
-				cout << "propagated key length  :" << prop_key_len << endl;
-				cout << "propagated page number from leaf to intermediate::"
-						<< prop_page_num.pageNum << endl;
+//				char str1_key_Array[prop_key_len];
+//				memcpy(&str1_key_Array, (char *) prop_page_pointer,
+//						prop_key_len);
+//				string str1_key(str1_key_Array, prop_key_len);
+//				cout << "propagated key from leaf to intermediate:" << str1_key
+//						<< endl;
+//				cout << "propagated key length  :" << prop_key_len << endl;
+//				cout << "propagated page number from leaf to intermediate::"
+//						<< prop_page_num.pageNum << endl;
 
 				splitIntermediatePage(ixfileHandle, page_num,
 						insert_key_pointer, insert_page_num_ptr, type,
@@ -276,17 +304,17 @@ RC IndexManager::insertReccursion(unsigned page_num, const void *key,
 						prop_key_len);
 
 				//check with cout
-				char str_key_Array[prop_key_len];
-				memcpy(&str_key_Array, (char *) prop_page_pointer,
-						prop_key_len);
-				string str_key(str_key_Array, prop_key_len);
-				cout << "propagated key from intermediate :" << str_key << endl;
-				cout << "propagated key length  :" << prop_key_len << endl;
-				cout << "propagated page number from intermediate :"
-						<< prop_page_num.pageNum << endl;
+//				char str_key_Array[prop_key_len];
+//				memcpy(&str_key_Array, (char *) prop_page_pointer,
+//						prop_key_len);
+//				string str_key(str_key_Array, prop_key_len);
+//				cout << "propagated key from intermediate :" << str_key << endl;
+//				cout << "propagated key length  :" << prop_key_len << endl;
+//				cout << "propagated page number from intermediate :"
+//						<< prop_page_num.pageNum << endl;
 
 				unsigned root_node_page_num = readRootPage(
-						ixfileHandle.fileHandle);
+						ixfileHandle);
 				if (page_num == root_node_page_num) {
 					void *root_page_buffer = calloc(4096, 1);
 
@@ -311,7 +339,7 @@ RC IndexManager::insertReccursion(unsigned page_num, const void *key,
 					ixfileHandle.fileHandle.appendPage(root_page_buffer);
 					unsigned num_of_pages =
 							ixfileHandle.fileHandle.getNumberOfPages();
-					updateRootPage(ixfileHandle.fileHandle, num_of_pages);
+					updateRootPage(ixfileHandle, num_of_pages);
 
 					free(root_page_buffer);
 				}
@@ -331,16 +359,16 @@ RC IndexManager::insertReccursion(unsigned page_num, const void *key,
 					prop_key_len);
 
 			//check with cout
-			char str_key_Array[prop_key_len];
-			memcpy(&str_key_Array, (char *) prop_page_pointer, prop_key_len);
-			string str_key(str_key_Array, prop_key_len);
-			cout << "propagated key from leaf :" << str_key << endl;
-			cout << "propagated key length  :" << prop_key_len << endl;
-			cout << "propagated page number from leaf :"
-					<< prop_page_num.pageNum << endl;
+//			char str_key_Array[prop_key_len];
+//			memcpy(&str_key_Array, (char *) prop_page_pointer, prop_key_len);
+//			string str_key(str_key_Array, prop_key_len);
+//			cout << "propagated key from leaf :" << str_key << endl;
+//			cout << "propagated key length  :" << prop_key_len << endl;
+//			cout << "propagated page number from leaf :"
+//					<< prop_page_num.pageNum << endl;
 
 			//if the page number to be inserted was a root then create a new root and update
-			unsigned root_node_page_num = readRootPage(ixfileHandle.fileHandle);
+			unsigned root_node_page_num = readRootPage(ixfileHandle);
 			if (page_num == root_node_page_num) {
 				void *root_page_buffer = calloc(4096, 1);
 
@@ -365,7 +393,7 @@ RC IndexManager::insertReccursion(unsigned page_num, const void *key,
 				ixfileHandle.fileHandle.appendPage(root_page_buffer);
 				unsigned num_of_pages =
 						ixfileHandle.fileHandle.getNumberOfPages();
-				updateRootPage(ixfileHandle.fileHandle, num_of_pages);
+				updateRootPage(ixfileHandle, num_of_pages);
 
 				free(root_page_buffer);
 			}
@@ -679,8 +707,8 @@ RC IndexManager::insertIntoIntermediatePage(IXFileHandle &ixfileHandle,
 			char_len);
 
 	//cout checks
-	cout << "num_of_indexes before leaf insert :" << num_of_slots << endl;
-	cout << "free_space before leaf insert :" << free_space_of_page << endl;
+//	cout << "num_of_indexes before leaf insert :" << num_of_slots << endl;
+//	cout << "free_space before leaf insert :" << free_space_of_page << endl;
 
 	//return if the node doesn't have space to fit in the current page
 //	if (free_space_of_page < (char_len + 4)) {
@@ -704,17 +732,22 @@ RC IndexManager::insertIntoIntermediatePage(IXFileHandle &ixfileHandle,
 	memcpy((char*) buffer + buffer_offset_to_insert + char_len, &page_ptr,
 	PAGE_NUM_PTR_SIZE);
 
+	//cout check
+//	int entry=0;
+//	memcpy(&entry, (char*) key,char_len);
+//	cout<<"new:"<<entry<<endl;
+
 	//update the number of indexes slot on the page
 	num_of_slots += 1;
 	memcpy((char *) buffer + NUM_OF_INDEX_BLOCK, &num_of_slots, 2);
 
 	//update the newly available free space on the page
 	free_space_of_page = free_space_of_page - PAGE_NUM_PTR_SIZE - char_len;
-	memcpy(&free_space_of_page, (char *) buffer + FREE_SPACE_BLOCK, 2);
+	memcpy((char *) buffer + FREE_SPACE_BLOCK,&free_space_of_page, 2);
 
 	//cout checks
-	cout << "num_of_indexes after insert :" << num_of_slots << endl;
-	cout << "free_space after  insert :" << free_space_of_page << endl;
+//	cout << "num_of_indexes after insert :" << num_of_slots << endl;
+//	cout << "free_space after  insert :" << free_space_of_page << endl;
 
 	return 0;
 }
@@ -731,9 +764,9 @@ RC IndexManager::insertIntoLeafPage(IXFileHandle &ixfileHandle, const void *key,
 			char_len);
 
 	//cout checks
-	cout << "num_of_slots before leaf insert :" << num_of_slots << endl;
-	cout << "free_space_of_page before leaf insert :" << free_space_of_page
-			<< endl;
+//	cout << "num_of_slots before leaf insert :" << num_of_slots << endl;
+//	cout << "free_space_of_page before leaf insert :" << free_space_of_page
+//			<< endl;
 
 	//return if the node doesn't have space to fit in the current page
 //	if (free_space_of_page < (char_len + 8)) {
@@ -755,6 +788,11 @@ RC IndexManager::insertIntoLeafPage(IXFileHandle &ixfileHandle, const void *key,
 	memcpy((char*) buffer + buffer_offset_to_insert + char_len, &rid,
 	RID_BLOCK_SIZE);
 
+	//cout check
+//				int entry=0;
+//				memcpy(&entry, (char*) key,char_len);
+//				cout<<"new:"<<entry<<endl;
+
 	//update the number of indexes slot on the page
 	num_of_slots += 1;
 	memcpy((char *) buffer + NUM_OF_INDEX_BLOCK, &num_of_slots, 2);
@@ -764,9 +802,9 @@ RC IndexManager::insertIntoLeafPage(IXFileHandle &ixfileHandle, const void *key,
 	memcpy((char*) buffer + FREE_SPACE_BLOCK, &free_space_of_page, 2);
 
 	//cout checks
-	cout << "num_of_slots after leaf insert :" << num_of_slots << endl;
-	cout << "free_space_of_page after leaf insert :" << free_space_of_page
-			<< endl;
+//	cout << "num_of_slots after leaf insert :" << num_of_slots << endl;
+//	cout << "free_space_of_page after leaf insert :" << free_space_of_page
+//			<< endl;
 
 	return 0;
 }
@@ -785,7 +823,7 @@ RC IndexManager::deleteEntry(IXFileHandle &ixfileHandle,
 	std::vector<int> parents;
 
 	// Traverse down the tree to the leaf, using non-leaves along the way
-	int insert_dest = readRootPage(ixfileHandle.fileHandle);
+	int insert_dest = readRootPage(ixfileHandle);
 	void *buffer = calloc(4096, 1);
 
 	//pull the root page
@@ -990,6 +1028,11 @@ RC IndexManager::searchIntermediateNode(const void *key, int &pagePtr,
 		} else {
 			memcpy(comparisonEntry, (char *) buffer + buffer_offset, 4);
 			char_len = 4;
+
+			//cout check
+//			int entry=0;
+//			memcpy(&entry, (char *)comparisonEntry,4);
+//			cout<<i<<":"<<entry<<"\t";
 		}
 
 		if (compareEntryKeyIndex(key, comparisonEntry, type, char_len) == 1) {//check if key Parameter is right or not
@@ -1006,6 +1049,7 @@ RC IndexManager::searchIntermediateNode(const void *key, int &pagePtr,
 
 	}
 	memcpy(&pagePtr, (char *) buffer + buffer_offset - 4, 4);//read left page number Ptr onto pagePTR
+	cout<<"left page ptr: "<<pagePtr<<endl;
 
 	free(comparisonEntry);
 	return buffer_offset;
@@ -1039,6 +1083,11 @@ RC IndexManager::searchLeafNode(const void *key, void *buffer, int type) {
 		} else {
 			memcpy(comparisonEntry, (char *) buffer + buffer_offset, 4);
 			char_len = 4;
+
+			//cout check
+//			int entry=0;
+//			memcpy(&entry, (char *)comparisonEntry,4);
+//			cout<<i<<":"<<entry<<"\t";
 		}
 		if (compareEntryKeyIndex(key, comparisonEntry, type, char_len) == 1) {//check if key Parameter is right or not
 
@@ -1127,6 +1176,32 @@ IXFileHandle::IXFileHandle() {
 	ixReadPageCounter = 0;
 	ixWritePageCounter = 0;
 	ixAppendPageCounter = 0;
+}
+
+RC IndexManager::printPage(IXFileHandle &ixfileHandle, int pageNum,const void *key){
+	//definition of useful page overheads
+
+	void *buffer =calloc(4096,1);
+	ixfileHandle.fileHandle.readPage(pageNum,buffer);
+	int type =0;
+	short free_space_of_page;
+	short num_of_slots;
+	int char_len;
+	readOverHeads(key, type, buffer, free_space_of_page, num_of_slots,
+			char_len);
+
+	cout<<"root page entry"<<endl;
+	int buffer_offset=0;
+	for(int i=0;i<(2*num_of_slots)+1;i++){
+//		int char_len=0;
+		int output_key = 0;
+		memcpy(&output_key, (char *) buffer + buffer_offset, 4);
+		cout<<output_key<<"\t";
+		buffer_offset +=4;
+	}
+
+	free(buffer);
+	return 0;
 }
 
 IXFileHandle::~IXFileHandle() {

@@ -204,10 +204,10 @@ RC incrementCounterValue(FILE* file, int offset){
 RC FileHandle::readPage(PageNum pageNum, void *data)
 {
     unsigned num = getNumberOfPages();
-    if(pageNum+1 > num)return -1;
+    if(pageNum > num)return -1;
     FILE* pageFile = getPageFilePtr();
     if(pageFile==NULL)return -1;//? check to if file exists or not?
-    fseek ( pageFile , (pageNum+1)*PAGE_SIZE , SEEK_SET );
+    fseek ( pageFile , pageNum*PAGE_SIZE , SEEK_SET );
     fread(data,PAGE_SIZE,1,pageFile);
     if(ferror(pageFile))return -1;// read page failed
     rewind(pageFile);
@@ -220,9 +220,9 @@ RC FileHandle::readPage(PageNum pageNum, void *data)
 RC FileHandle::writePage(PageNum pageNum, const void *data)
 {
     unsigned num = getNumberOfPages();
-    if(pageNum+1 > num)return -1;//to check if the page exists in the file
+    if(pageNum > num)return -1;//to check if the page exists in the file
     FILE* pageFile = getPageFilePtr();
-    fseek ( pageFile , (pageNum+1)*PAGE_SIZE , SEEK_SET );
+    fseek ( pageFile , pageNum*PAGE_SIZE , SEEK_SET );
     fwrite(data, PAGE_SIZE,1, pageFile);
     if(ferror(pageFile))return -1; // writing page failed
     rewind(pageFile);
