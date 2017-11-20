@@ -14,11 +14,36 @@ IndexManager* IndexManager::instance() {
 
 	return _index_manager;
 }
+RC readOverHeads(const void *key, int type, void *buffer,
+		short &free_space_of_page, short &num_of_slots, int &char_len);
+RC updateRootPage(IXFileHandle &ixfileHandle, unsigned root_page_num); //to update Root node
+RC insertIntoIntermediatePage(IXFileHandle &ixfileHandle, const void *key,
+		PageNum page_ptr, int type, void *buffer); //,short free_space_of_page, short num_of_slots, int char_len);//to insert key and pointer to non-leaf /intermediate page
+RC insertIntoLeafPage(IXFileHandle &ixfileHandle, const void *key,
+		const RID &rid, int type, void *buffer); //,short free_space_of_page, short num_of_slots, int char_len);//to insert key and pointer to leaf page
+RC searchLeafNode(const void *key, void *buffer, int type); //to search the key in leaf node
 RC readRootPage(IXFileHandle &ixfileHandle);
 RC searchIntermediateNode(const void *key, int &pagePtr, void *buffer,
 		int type);
 RC compareEntryKeyIndex(const void *key, void *comparisonEntry, int type,
 		int compare_len);
+RC compareDeleteEntryKeyRID(const void *key, void *comparisonEntry,
+		const RID &rid, int type, int compare_len);
+RC deleteEntryInLeaf(IXFileHandle &ixfileHandle, const void *key,
+		const RID &rid, int type, void *buffer, short free_space_of_page,
+		short num_of_slots, int char_len); //to delete the key index for the matching <key,rid>
+RC splitLeafPage(IXFileHandle &ixfileHandle, int insert_dest, const void *key,
+		const RID &rid, int type, void *buffer, void *prop_key,
+		RID &prop_page_num, int &prop_key_len); //splits the leaf page and inserts the key requested into it
+RC splitIntermediatePage(IXFileHandle &ixfileHandle, int insert_dest,
+		const void *key, const RID &rid, int type, void *buffer, void *prop_key,
+		RID &prop_page_num, int &prop_key_len); //splits the intermediate page and inserts the key propagated from new leaf into it
+RC insertReccursion(unsigned page_num, const void *key,
+		IXFileHandle &ixfileHandle, const RID &rid, int type,
+		void*prop_page_pointer, RID &prop_page_num, int &prop_len); //function called to insert the key (recursive) one;
+RC splitLeafSearch(void *buffer, short num_of_slots, int type, int &pos); //search helper for splitting leaf nodes sends index position number & offset
+RC splitIntermediateSearch(void *buffer, short num_of_slots, int type,
+		int &pos); //search helper for splitting intermediate nodes sends index position number & offset
 IndexManager::IndexManager() {
 }
 
@@ -51,8 +76,7 @@ RC IndexManager::closeFile(IXFileHandle &ixfileHandle) {
 
 }
 
-RC IndexManager::updateRootPage(IXFileHandle &ixfileHandle,
-		unsigned root_page_num) {
+RC updateRootPage(IXFileHandle &ixfileHandle, unsigned root_page_num) {
 
 	//update the root page number in the hidden page0
 	ixfileHandle.fileHandle.writeRootPageNumber(root_page_num);
@@ -139,10 +163,8 @@ RC IndexManager::insertEntry(IXFileHandle &ixfileHandle,
 	// contd. and update the hidden page with the new root pageNum PTR.
 	// The new root Key will have left pointer pointing to the old Intermediate Node and right will be to the Newly created Intermediate Node
 
-	//read Page 0-to accommodate
-
-	cout << "No. of pages :" << ixfileHandle.fileHandle.getNumberOfPages()
-			<< endl;
+//	cout << "No. of pages :" << ixfileHandle.fileHandle.getNumberOfPages()
+//			<< endl;
 
 	int type = (attribute.type == TypeVarChar) ? 2 :
 				(attribute.type == TypeReal) ? 1 : 0;
@@ -167,7 +189,7 @@ RC IndexManager::insertEntry(IXFileHandle &ixfileHandle,
 
 	RID prop_page_num;
 	int prop_key_len = 0;
-	void *prop_page_pointer = calloc(4096, 1);
+	void *prop_page_pointer = calloc(PAGE_SIZE, 1);
 	insertReccursion(insert_dest, key, ixfileHandle, rid, type,
 			prop_page_pointer, prop_page_num, prop_key_len);
 
@@ -175,11 +197,11 @@ RC IndexManager::insertEntry(IXFileHandle &ixfileHandle,
 	return 0;
 }
 
-RC IndexManager::insertReccursion(unsigned page_num, const void *key,
+RC insertReccursion(unsigned page_num, const void *key,
 		IXFileHandle &ixfileHandle, const RID &rid, int type,
 		void *prop_page_pointer, RID &prop_page_num, int &prop_key_len) {
 
-	void *insert_entry_buffer = calloc(4096, 1);
+	void *insert_entry_buffer = calloc(PAGE_SIZE, 1);
 
 	//pull the root page
 	ixfileHandle.fileHandle.readPage(page_num, insert_entry_buffer);
@@ -242,7 +264,7 @@ RC IndexManager::insertReccursion(unsigned page_num, const void *key,
 
 				unsigned root_node_page_num = readRootPage(ixfileHandle);
 				if (page_num == root_node_page_num) {
-					void *root_page_buffer = calloc(4096, 1);
+					void *root_page_buffer = calloc(PAGE_SIZE, 1);
 
 					memcpy((char *) root_page_buffer, &page_num, 4);
 					memcpy((char *) root_page_buffer + 4, prop_page_pointer,
@@ -296,7 +318,7 @@ RC IndexManager::insertReccursion(unsigned page_num, const void *key,
 			//if the page number to be inserted was a root then create a new root and update
 			unsigned root_node_page_num = readRootPage(ixfileHandle);
 			if (page_num == root_node_page_num) {
-				void *root_page_buffer = calloc(4096, 1);
+				void *root_page_buffer = calloc(PAGE_SIZE, 1);
 
 				memcpy((char *) root_page_buffer, &page_num, 4);
 				memcpy((char *) root_page_buffer + 4, prop_page_pointer,
@@ -328,9 +350,9 @@ RC IndexManager::insertReccursion(unsigned page_num, const void *key,
 	free(insert_entry_buffer);
 	return 0;
 }
-RC IndexManager::splitLeafPage(IXFileHandle &ixfileHandle, int insert_dest,
-		const void *key, const RID &rid, int type, void *input_leaf_buffer,
-		void *prop_key, RID &prop_page_num, int &prop_key_len) {
+RC splitLeafPage(IXFileHandle &ixfileHandle, int insert_dest, const void *key,
+		const RID &rid, int type, void *input_leaf_buffer, void *prop_key,
+		RID &prop_page_num, int &prop_key_len) {
 
 	// Definition of useful page overheads
 	short free_space_of_page;
@@ -339,7 +361,7 @@ RC IndexManager::splitLeafPage(IXFileHandle &ixfileHandle, int insert_dest,
 	readOverHeads(key, type, input_leaf_buffer, free_space_of_page,
 			num_of_slots, char_len);
 
-	void *right_page = calloc(4096, 1);		//new page mapping buffer
+	void *right_page = calloc(PAGE_SIZE, 1);		//new page mapping buffer
 
 	// Get the point to split the existing page at
 	int split_index_pos_num;
@@ -404,8 +426,7 @@ RC IndexManager::splitLeafPage(IXFileHandle &ixfileHandle, int insert_dest,
 	return 0; //return offset of split in input buffer
 }
 
-RC IndexManager::splitLeafSearch(void *buffer, short num_of_slots, int type,
-		int &pos) {
+RC splitLeafSearch(void *buffer, short num_of_slots, int type, int &pos) {
 
 	int buffer_offset = 0;
 	int entryI;
@@ -497,10 +518,9 @@ RC IndexManager::splitLeafSearch(void *buffer, short num_of_slots, int type,
 	return buffer_offset;
 }
 
-RC IndexManager::splitIntermediatePage(IXFileHandle &ixfileHandle,
-		int insert_dest, const void *key, const RID &rid, int type,
-		void *input_buffer, void *prop_key, RID &prop_page_num,
-		int &prop_key_len) {
+RC splitIntermediatePage(IXFileHandle &ixfileHandle, int insert_dest,
+		const void *key, const RID &rid, int type, void *input_buffer,
+		void *prop_key, RID &prop_page_num, int &prop_key_len) {
 
 	// Definition of page overheads
 	short free_space_of_page;
@@ -508,7 +528,7 @@ RC IndexManager::splitIntermediatePage(IXFileHandle &ixfileHandle,
 	int char_len;
 	readOverHeads(key, type, input_buffer, free_space_of_page, num_of_slots,
 			char_len);
-	void *right_page = calloc(4096, 1);		//new page mapping buffer
+	void *right_page = calloc(PAGE_SIZE, 1);		//new page mapping buffer
 
 	// Get the point to split the existing page at
 	int split_index_pos_num;
@@ -581,8 +601,8 @@ RC IndexManager::splitIntermediatePage(IXFileHandle &ixfileHandle,
 	return 0;	//return offset of split in input buffer
 }
 
-RC IndexManager::splitIntermediateSearch(void *buffer, short num_of_slots,
-		int type, int &pos) {
+RC splitIntermediateSearch(void *buffer, short num_of_slots, int type,
+		int &pos) {
 
 	int buffer_offset = 4;
 	for (int i = 0; i < (int) num_of_slots / 2; i++) {
@@ -601,7 +621,7 @@ RC IndexManager::splitIntermediateSearch(void *buffer, short num_of_slots,
 	return buffer_offset;
 }
 
-RC IndexManager::readOverHeads(const void *key, int type, void *buffer,
+RC readOverHeads(const void *key, int type, void *buffer,
 		short &free_space_of_page, short &num_of_slots, int &char_len) {
 
 	memcpy(&free_space_of_page, (char *) buffer + FREE_SPACE_BLOCK, 2);
@@ -615,8 +635,8 @@ RC IndexManager::readOverHeads(const void *key, int type, void *buffer,
 	return 0;
 }
 
-RC IndexManager::insertIntoIntermediatePage(IXFileHandle &ixfileHandle,
-		const void *key, PageNum page_ptr, int type, void *buffer) {	//,
+RC insertIntoIntermediatePage(IXFileHandle &ixfileHandle, const void *key,
+		PageNum page_ptr, int type, void *buffer) {	//,
 	//short free_space_of_page, short num_of_slots, int char_len) {//char_len =4 for real and int and 4+var_char for others has to be passed along
 
 	//definition of useful page overheads
@@ -667,7 +687,7 @@ RC IndexManager::insertIntoIntermediatePage(IXFileHandle &ixfileHandle,
 	return 0;
 }
 
-RC IndexManager::insertIntoLeafPage(IXFileHandle &ixfileHandle, const void *key,
+RC insertIntoLeafPage(IXFileHandle &ixfileHandle, const void *key,
 		const RID &rid, int type, void *buffer) {//, short free_space_of_page,
 	//short num_of_slots, int char_len) {	//char_len =4 for int/real n 4+lenght of varchar for varchar
 
@@ -698,6 +718,11 @@ RC IndexManager::insertIntoLeafPage(IXFileHandle &ixfileHandle, const void *key,
 	memcpy((char*) buffer + buffer_offset_to_insert + char_len, &rid,
 	RID_BLOCK_SIZE);
 
+
+//	//check with cout
+//	string str_key((char*)key + 4, char_len - 4);
+//	cout << "propagated key from leaf :" << str_key << endl;
+
 	//cout check
 //				int entry=0;
 //				memcpy(&entry, (char*) key,char_len);
@@ -723,8 +748,8 @@ RC IndexManager::deleteEntry(IXFileHandle &ixfileHandle,
 		const Attribute &attribute, const void *key, const RID &rid) {
 
 	int result = -1;
-	cout << "No. of pages :" << ixfileHandle.fileHandle.getNumberOfPages()
-			<< endl;
+//	cout << "No. of pages :" << ixfileHandle.fileHandle.getNumberOfPages()
+//			<< endl;
 
 	int type = (attribute.type == TypeVarChar) ? 2 :
 				(attribute.type == TypeReal) ? 1 : 0;
@@ -734,7 +759,7 @@ RC IndexManager::deleteEntry(IXFileHandle &ixfileHandle,
 
 	// Traverse down the tree to the leaf, using non-leaves along the way
 	int insert_dest = readRootPage(ixfileHandle);
-	void *buffer = calloc(4096, 1);
+	void *buffer = calloc(PAGE_SIZE, 1);
 
 	//pull the root page
 	ixfileHandle.fileHandle.readPage(insert_dest, buffer);
@@ -744,7 +769,7 @@ RC IndexManager::deleteEntry(IXFileHandle &ixfileHandle,
 	memcpy(&is_leaf_page, (char *) buffer + NODE_FLAG_BLOCK, 2);
 
 	while (is_leaf_page == 0) {
-		parents.push_back(insert_dest);
+//		parents.push_back(insert_dest);
 
 		searchIntermediateNode(key, insert_dest, buffer, type);
 
@@ -755,7 +780,7 @@ RC IndexManager::deleteEntry(IXFileHandle &ixfileHandle,
 	}
 
 	//check if we are at leaf page
-	cout << "is_leaf_page :" << is_leaf_page << endl;
+//	cout << "is_leaf_page :" << is_leaf_page << endl;
 
 	//to delete index entry from leaf node
 	short free_space_of_page;
@@ -775,7 +800,7 @@ RC IndexManager::deleteEntry(IXFileHandle &ixfileHandle,
 	return result;
 }
 
-RC IndexManager::deleteEntryInLeaf(IXFileHandle &ixfileHandle, const void *key,
+RC deleteEntryInLeaf(IXFileHandle &ixfileHandle, const void *key,
 		const RID &rid, int type, void *buffer, short free_space_of_page,
 		short num_of_slots, int char_key_len) {	//char_key_len =4 for int/real n 4+lenght of varchar for varchar
 
@@ -790,7 +815,7 @@ RC IndexManager::deleteEntryInLeaf(IXFileHandle &ixfileHandle, const void *key,
 
 	int buffer_offset_to_delete = 0;	//searchLeafNode(key, buffer, type);
 	int char_len = 0;
-	void *comparisonEntry = calloc(4096, 1);
+	void *comparisonEntry = calloc(PAGE_SIZE, 1);
 	for (int i = 0; i < (int) num_of_slots; i++) {
 		char_len = 0;
 
@@ -804,22 +829,23 @@ RC IndexManager::deleteEntryInLeaf(IXFileHandle &ixfileHandle, const void *key,
 
 		} else {
 			memcpy(comparisonEntry, (char *) buffer + buffer_offset_to_delete,
-					4 + 8);
+					12);//4+8
 			char_len = 4;
 		}
 		if (compareDeleteEntryKeyRID(key, comparisonEntry, rid, type, char_len)
 				== 1) {	//check if key Parameter n rid are matched
+			int tombStone = 0;
 			if (type == 2) {
 				memcpy((char *) buffer + buffer_offset_to_delete + 4 + char_len,
-						&result, 4);
+						&tombStone, 4);
 				memcpy(
 						(char *) buffer + buffer_offset_to_delete + 4 + char_len
-								+ 4, &result, 4);
+								+ 4, &tombStone, 4);
 			} else {
-				memcpy((char *) buffer + buffer_offset_to_delete + 4, &result,
-						4);
-				memcpy((char *) buffer + buffer_offset_to_delete + 8, &result,
-						4);
+				memcpy((char *) buffer + buffer_offset_to_delete + 4,
+						&tombStone, 4);
+				memcpy((char *) buffer + buffer_offset_to_delete + 8,
+						&tombStone, 4);
 			}
 			result = 0;
 			break;
@@ -854,8 +880,8 @@ RC IndexManager::deleteEntryInLeaf(IXFileHandle &ixfileHandle, const void *key,
 	return result;
 }
 
-RC IndexManager::compareDeleteEntryKeyRID(const void *key,
-		void *comparisonEntry, const RID &rid, int type, int compare_len) {
+RC compareDeleteEntryKeyRID(const void *key, void *comparisonEntry,
+		const RID &rid, int type, int compare_len) {
 	int result = 0;
 
 	if (type == 0) {
@@ -924,7 +950,7 @@ RC searchIntermediateNode(const void *key, int &pagePtr, void *buffer,
 	memcpy(&num_of_index_slots, (char*) buffer + NUM_OF_INDEX_BLOCK, 2);
 
 	int buffer_offset = 4;	//4->left pointer of first key
-	void *comparisonEntry = calloc(4096, 1);
+	void *comparisonEntry = calloc(PAGE_SIZE, 1);
 	for (int i = 0; i < (int) num_of_index_slots; i++) {
 		int char_len = 0;
 
@@ -958,14 +984,14 @@ RC searchIntermediateNode(const void *key, int &pagePtr, void *buffer,
 
 	}
 	memcpy(&pagePtr, (char *) buffer + buffer_offset - 4, 4);//read left page number Ptr onto pagePTR
-	cout << "left page ptr: " << pagePtr << endl;
+//	cout << "left page ptr: " << pagePtr << endl;
 
 	free(comparisonEntry);
 	return buffer_offset;
 	//pagePtr is updated with appropriate page num for child intermediate/leaf node and buffer_offset for insert index -> returned (4<default> , max<4090>)
 }
 
-RC IndexManager::searchLeafNode(const void *key, void *buffer, int type) {
+RC searchLeafNode(const void *key, void *buffer, int type) {
 
 	//corner case test for intermediate page
 	short flag;
@@ -978,7 +1004,7 @@ RC IndexManager::searchLeafNode(const void *key, void *buffer, int type) {
 	short num_of_key_slots;
 	memcpy(&num_of_key_slots, (char*) buffer + NUM_OF_INDEX_BLOCK, 2);
 	int buffer_offset = 0;
-	void *comparisonEntry = calloc(4096, 1);
+	void *comparisonEntry = calloc(PAGE_SIZE, 1);
 	for (int i = 0; i < (int) num_of_key_slots; i++) {
 		int char_len = 0;
 
@@ -1053,23 +1079,24 @@ RC compareEntryKeyIndex(const void *key, void *comparisonEntry, int type,
 }
 
 RC IndexManager::scan(IXFileHandle &ixfileHandle, const Attribute &attribute,
-                      const void *lowKey, const void *highKey, bool lowKeyInclusive,
-                      bool highKeyInclusive, IX_ScanIterator &ix_ScanIterator) {
-    
-    ix_ScanIterator.ixfileHandle = &ixfileHandle;
-    ix_ScanIterator.attrType = attribute.type;
-    ix_ScanIterator.currentPageNum = 0;
-    ix_ScanIterator.currentOffset = -1;
-    ix_ScanIterator.lowKey = lowKey;
-    ix_ScanIterator.highKey = highKey;
-    ix_ScanIterator.lowKeyInclusive = lowKeyInclusive;
-    ix_ScanIterator.highKeyInclusive = highKeyInclusive;
-    
-    return 0;
-    
+		const void *lowKey, const void *highKey, bool lowKeyInclusive,
+		bool highKeyInclusive, IX_ScanIterator &ix_ScanIterator) {
+
+	if (ixfileHandle.fileHandle.getPageFilePtr() == NULL)
+		return -1;
+
+	ix_ScanIterator.ixfileHandle = &ixfileHandle;
+	ix_ScanIterator.attrType = attribute.type;
+	ix_ScanIterator.currentPageNum = 0;
+	ix_ScanIterator.currentOffset = -1;
+	ix_ScanIterator.lowKey = lowKey;
+	ix_ScanIterator.highKey = highKey;
+	ix_ScanIterator.lowKeyInclusive = lowKeyInclusive;
+	ix_ScanIterator.highKeyInclusive = highKeyInclusive;
+
+	return 0;
+
 }
-
-
 
 void IndexManager::printBtree(IXFileHandle &ixfileHandle,
 		const Attribute &attribute) const {
@@ -1082,367 +1109,408 @@ IX_ScanIterator::~IX_ScanIterator() {
 }
 
 RC IX_ScanIterator::getNextEntry(RID &rid, void *key) {
-    //find the root page number
-    //find the leaf page and the offset from where i have to start scanning-do this by checking with low key
-    //check if the leaf key satisfies the condition >low key and < high key,if it does then return that key and rid
-    
-    void *insert_enrty_buffer = calloc(4096, 1);
-    
-    if (currentPageNum == 0 && currentOffset == -1) {
-        // Traverse down the tree to the leaf, using non-leaves along the way
-        int insert_dest = readRootPage(*ixfileHandle);
-        
-        //pull the root page
-        ixfileHandle->fileHandle.readPage(insert_dest, insert_enrty_buffer);
-        
-        //read leaf flag on the root page
-        int is_leaf_page = 0;
-        memcpy(&is_leaf_page, (char *) insert_enrty_buffer + NODE_FLAG_BLOCK,
-               2);
-        
-        while (is_leaf_page == 0) {
-            if (lowKey == NULL) {
-                memcpy(&insert_dest, (char *) insert_enrty_buffer, 4);
-            } else {
-                searchIntermediateNode(lowKey, insert_dest, /// check for lowkey when = NULL
-                                       insert_enrty_buffer, attrType);
-            }
-            // pull and read the designated page into memory and refresh the leaf flag
-            memset(insert_enrty_buffer, 0, PAGE_SIZE);
-            ixfileHandle->fileHandle.readPage(insert_dest, insert_enrty_buffer); //insert_dest will have the leaf page number and insert_enrty_buffer will have the leaf page
-            memcpy(&is_leaf_page,
-                   (char *) insert_enrty_buffer + NODE_FLAG_BLOCK, 2);
-        }
-        
-        int result = -1;
-        
-        //search function to update the key and rid
-        do {
-            result = scanLeafNodes(insert_enrty_buffer, lowKey, highKey,
-                                   lowKeyInclusive, highKeyInclusive, attrType, rid, key);
-            
-            if (result == -1) {
-                free(insert_enrty_buffer);
-                return -1;
-            } else if (result == 1) {
-                currentPageNum = insert_dest;
-                break;
-            } else {
-                int overFlowFlag = 0;
-                memcpy(&overFlowFlag, (char *) insert_enrty_buffer + 4086,
-                       sizeof(int));
-                if (overFlowFlag != -1) {
-                    memset(insert_enrty_buffer, 0, PAGE_SIZE);
-                    ixfileHandle->fileHandle.readPage(overFlowFlag,
-                                                      insert_enrty_buffer);
-                    insert_dest = overFlowFlag;
-                } else {
-                	free(insert_enrty_buffer);
-                    return -1;
-                }
-            }
-            
-        } while (result == 0);
-    } else {
-        //directly call the search function here
-        ixfileHandle->fileHandle.readPage(currentPageNum, insert_enrty_buffer);
-        scanLeafNodes(insert_enrty_buffer, lowKey, highKey, lowKeyInclusive,
-                      highKeyInclusive, attrType, rid, key);
-    }
-    
-    free(insert_enrty_buffer);
-    return 0;
+	//find the root page number
+	//find the leaf page and the offset from where i have to start scanning-do this by checking with low key
+	//check if the leaf key satisfies the condition >low key and < high key,if it does then return that key and rid
+
+	void *insert_enrty_buffer = calloc(PAGE_SIZE, 1);
+
+	if (currentPageNum == 0 && currentOffset == -1) {
+		// Traverse down the tree to the leaf, using non-leaves along the way
+		int insert_dest = readRootPage(*ixfileHandle);
+
+		//pull the root page
+		ixfileHandle->fileHandle.readPage(insert_dest, insert_enrty_buffer);
+
+		//read leaf flag on the root page
+		int is_leaf_page = 0;
+		memcpy(&is_leaf_page, (char *) insert_enrty_buffer + NODE_FLAG_BLOCK,
+				2);
+
+		while (is_leaf_page == 0) {
+			if (lowKey == NULL) {
+				memcpy(&insert_dest, (char *) insert_enrty_buffer, 4);
+			} else {
+				searchIntermediateNode(lowKey, insert_dest, /// check for lowkey when = NULL
+						insert_enrty_buffer, attrType);
+			}
+			// pull and read the designated page into memory and refresh the leaf flag
+			memset(insert_enrty_buffer, 0, PAGE_SIZE);
+			ixfileHandle->fileHandle.readPage(insert_dest, insert_enrty_buffer); //insert_dest will have the leaf page number and insert_enrty_buffer will have the leaf page
+			memcpy(&is_leaf_page,
+					(char *) insert_enrty_buffer + NODE_FLAG_BLOCK, 2);
+		}
+
+		int result = -1;
+
+		//search function to update the key and rid
+		do {
+			result = scanLeafNodes(insert_enrty_buffer, lowKey, highKey,
+					lowKeyInclusive, highKeyInclusive, attrType, rid, key);
+
+			if (result == -1) {
+				free(insert_enrty_buffer);
+				return -1;
+			} else if (result == 1) {
+				currentPageNum = insert_dest;
+				break;
+			} else {
+				int overFlowFlag = 0;
+				memcpy(&overFlowFlag, (char *) insert_enrty_buffer + 4086,
+						sizeof(int));
+				if (overFlowFlag != -1) {
+					memset(insert_enrty_buffer, 0, PAGE_SIZE);
+					ixfileHandle->fileHandle.readPage(overFlowFlag,
+							insert_enrty_buffer);
+					insert_dest = overFlowFlag;
+					currentPageNum = overFlowFlag;
+					currentOffset = 0;
+				} else {
+					free(insert_enrty_buffer);
+					return -1;
+				}
+			}
+
+		} while (result == 0);
+	} else {
+		int insert_dest = currentPageNum;
+
+		//directly call the search function here
+		ixfileHandle->fileHandle.readPage(insert_dest, insert_enrty_buffer);
+		int result = -1;
+
+		//search function to update the key and rid
+		do {
+			result = scanLeafNodes(insert_enrty_buffer, lowKey, highKey,
+					lowKeyInclusive, highKeyInclusive, attrType, rid, key);
+
+			if (result == -1) {
+				free(insert_enrty_buffer);
+				return -1;
+			} else if (result == 1) {
+				currentPageNum = insert_dest;
+				break;
+			} else {
+				int overFlowFlag = 0;
+				memcpy(&overFlowFlag, (char *) insert_enrty_buffer + 4086,
+						sizeof(int));
+				if (overFlowFlag != -1) {
+					memset(insert_enrty_buffer, 0, PAGE_SIZE);
+					ixfileHandle->fileHandle.readPage(overFlowFlag,
+							insert_enrty_buffer);
+					insert_dest = overFlowFlag;
+					currentPageNum = overFlowFlag;
+					currentOffset = 0;
+				} else {
+					free(insert_enrty_buffer);
+					return -1;
+				}
+			}
+
+		} while (result == 0);
+	}
+
+	free(insert_enrty_buffer);
+	return 0;
 }
 
 RC IX_ScanIterator::scanLeafNodes(void * buffer, const void *lowkey,
-                                  const void *highkey, bool lowkeyinclusive, bool highkeyinclusive,
-                                  const AttrType attribType, RID &rid, void *key) {
-    
+		const void *highkey, bool lowkeyinclusive, bool highkeyinclusive,
+		const AttrType attribType, RID &rid, void *key) {
+
 //    AttrType attribType;
 //    attribType = attribute.type;
-    
-    int num_of_slots = 0;
-    memcpy(&num_of_slots, (char *) buffer + NUM_OF_INDEX_BLOCK, 2);
-    
-    int buffer_offset = 0;
-    
-    //seek leftkey and exit based on highkey
-    //need to have an exit condition when the highkey
-    //while scanning if any rid is -1,u skip that record
-    //exitConditions -
-    //based on high key,if(highkey !=null && key>=highkey) retutn -1;
-    //after iterating through all the nodes,check the leaf flag,if it's -1,again exit
-    
-    
-    int breakFlag = false;
-    for (int i = 0; i < num_of_slots; i++) {
-        int char_len = 0;
-        
-        if (attribType != TypeVarChar) {
-            char_len += 4;
-            //-------addition----------
-            int highKeyCheck=0;
-            memcpy(&highKeyCheck,(char *) buffer + buffer_offset,4);
-            if(((int *)highkey)!=NULL && highKeyCheck > (*(int *)highkey)){
-                return -1;
-                //-----------
-            }
-            
-        } else {
-            memcpy(&char_len, (char *) buffer + buffer_offset, 4); //for varchar
-            char_len += 4;
-            //----------addition-------
-            //convert highkey to string
-            int high_key_check_len = 0;
-            memcpy(&high_key_check_len, highkey, 4);
-            char high_key_array[high_key_check_len];
-            memcpy(&high_key_array, (char *) highkey + 4, high_key_check_len);
-            string high_key_string(high_key_array, high_key_check_len);
-            
-            //convert the key from buffer to string
-            int stringKeyLength=0;
-            memcpy(&stringKeyLength,(char *) buffer + buffer_offset,4);
-            char stringKeyArray[stringKeyLength];
-            memcpy(stringKeyArray,(char *) buffer + buffer_offset+4,stringKeyLength);
-            
-            if(stringKeyArray > highkey){
-                return -1;
-            }
-            //------------------------------
-        }
-        
-        if (buffer_offset >= currentOffset) {
-            if (lowkey == NULL && highkey == NULL) {
-                memcpy(key, (char *) buffer + buffer_offset, char_len); //for int and real
-                memcpy(&rid, (char *) buffer + buffer_offset + char_len, 8);
-                char_len += 8;
-                buffer_offset += char_len;
-                breakFlag = true;
-                break;
-            } else if (lowkey == NULL) {
-                
-                if (attribType == TypeInt) {
-                    int keyCheck = 0;
-                    memcpy(&keyCheck, (char *) buffer + buffer_offset,
-                           char_len); //for int and real
-                    
-                    if ((highkeyinclusive && (keyCheck <= *((int*) highkey)))
-                        || (!highkeyinclusive
-                            && keyCheck < *((int*) highkey))) {
-                            memcpy(&key, &keyCheck, 4);  //for int and real
-                            memcpy(&rid, (char *) buffer + buffer_offset + char_len,
-                                   8);
-                            char_len += 8;
-                            buffer_offset += char_len;
-                            breakFlag = true;
-                            break;
-                        }
-                } else if (attribType == TypeReal) {
-                    float keyCheck = 0;
-                    memcpy(&keyCheck, (char *) buffer + buffer_offset,
-                           char_len);  //for int and real
-                    
-                    if ((highkeyinclusive && (keyCheck <= *((float*) highkey)))
-                        || (!highkeyinclusive
-                            && keyCheck < *((float*) highkey))) {
-                            memcpy(&key, &keyCheck, 4);  //for int and real
-                            memcpy(&rid, (char *) buffer + buffer_offset + char_len,
-                                   8);
-                            char_len += 8;
-                            buffer_offset += char_len;
-                            breakFlag = true;
-                            break;
-                        }
-                } else {
-                    int len_of_string = 0;
-                    memcpy(&len_of_string, (char *) buffer + buffer_offset, 4);
-                    char str_key_array[len_of_string];
-                    memcpy(&str_key_array, (char *) buffer + buffer_offset + 4,
-                           len_of_string);
-                    string str1_key(str_key_array, len_of_string);
-                    
-                    int high_key_len = 0;
-                    memcpy(&high_key_len, highkey, 4);
-                    char high_key_array[high_key_len];
-                    memcpy(&high_key_array, (char *) highkey + 4, high_key_len);
-                    string high_key(high_key_array, high_key_len);
-                    
-                    if (((highkeyinclusive && (str1_key <= high_key)))
-                        || (!highkeyinclusive && (str1_key < high_key))) {
-                        memcpy(&key, (char *) buffer + buffer_offset, char_len);
-                        memcpy(&rid, (char *) buffer + buffer_offset + char_len,
-                               8);
-                        char_len += 8;
-                        buffer_offset += char_len;
-                        breakFlag = true;
-                        break;
-                    }
-                }
-                
-            } else if (highkey == NULL) {
-                if (attribType == TypeInt) {
-                    int keyCheck = 0;
-                    memcpy(&keyCheck, (char *) buffer + buffer_offset,
-                           char_len); //for int and real
-                    
-                    if ((lowkeyinclusive && (keyCheck >= *((int*) lowkey)))
-                        || (!lowkeyinclusive && keyCheck > *((int*) lowkey))) {
-                        memcpy(&key, &keyCheck, 4);  //for int and real
-                        memcpy(&rid, (char *) buffer + buffer_offset + char_len,
-                               8);
-                        char_len += 8;
-                        buffer_offset += char_len;
-                        breakFlag = true;
-                        break;
-                    }
-                } else if (attribType == TypeReal) {
-                    float keyCheck = 0;
-                    memcpy(&keyCheck, (char *) buffer + buffer_offset,
-                           char_len); //for int and real
-                    
-                    if ((lowkeyinclusive && (keyCheck >= *((float*) lowkey)))
-                        || (!lowkeyinclusive
-                            && keyCheck > *((float*) lowkey))) {
-                            memcpy(&key, &keyCheck, 4);  //for int and real
-                            memcpy(&rid, (char *) buffer + buffer_offset + char_len,
-                                   8);
-                            char_len += 8;
-                            buffer_offset += char_len;
-                            breakFlag = true;
-                            break;
-                        }
-                } else {
-                    int len_of_string = 0;
-                    memcpy(&len_of_string, (char *) buffer + buffer_offset, 4);
-                    char str_key_array[len_of_string];
-                    memcpy(&str_key_array, (char *) buffer + buffer_offset + 4,
-                           len_of_string);
-                    string str1_key(str_key_array, len_of_string);
-                    
-                    int low_key_len = 0;
-                    memcpy(&low_key_len, highkey, 4);
-                    char low_key_array[low_key_len];
-                    memcpy(&low_key_array, (char *) highkey + 4, low_key_len);
-                    string low_key(low_key_array, low_key_len);
-                    
-                    if (((lowkeyinclusive && (str1_key >= low_key)))
-                        || (!lowkeyinclusive && str1_key > low_key)) {
-                        memcpy(&key, (char *) buffer + buffer_offset, char_len); //len_of_string+4);  //for int and real
-                        memcpy(&rid, (char *) buffer + buffer_offset + char_len,
-                               8);
-                        char_len += 8;
-                        buffer_offset += char_len;
-                        breakFlag = true;
-                        break;
-                    }
-                }
-            } else {
-                if (attribType == TypeInt) {
-                    int keyCheck = 0;
-                    memcpy(&keyCheck, (char *) buffer + buffer_offset,
-                           char_len); //for int and real
-                    
-                    if ((!highkeyinclusive && (keyCheck < *((int*) highkey))
-                         && ((!lowkeyinclusive
-                              && (keyCheck > *((int*) lowkey)))
-                             || (lowkeyinclusive
-                                 && (keyCheck >= *((int*) lowkey)))))
-                        || (highkeyinclusive
-                            && (keyCheck <= *((int*) highkey))
-                            && ((!lowkeyinclusive
-                                 && (keyCheck > *((int*) lowkey)))
-                                || (lowkeyinclusive
-                                    && (keyCheck
-                                        >= *((int*) lowkey)))))) {
-                                        memcpy(&key, &keyCheck, 4);  //for int and real
-                                        memcpy(&rid, (char *) buffer + buffer_offset + char_len,
-                                               8);
-                                        char_len += 8;
-                                        buffer_offset += char_len;
-                                        breakFlag = true;
-                                        break;
-                                    }
-                } else if (attribType == TypeReal) {
-                    float keyCheck = 0;
-                    memcpy(&keyCheck, (char *) buffer + buffer_offset,
-                           char_len); //for int and real
-                    
-                    if ((!highkeyinclusive && (keyCheck < *((float*) highkey))
-                         && ((!lowkeyinclusive
-                              && (keyCheck > *((float*) lowkey)))
-                             || (lowkeyinclusive
-                                 && (keyCheck >= *((float *) lowkey)))))
-                        || (highkeyinclusive
-                            && (keyCheck <= *((float*) highkey))
-                            && ((!lowkeyinclusive
-                                 && (keyCheck > *((float*) lowkey)))
-                                || (lowkeyinclusive
-                                    && (keyCheck
-                                        >= *((float*) lowkey)))))) {
-                                        memcpy(&key, &keyCheck, 4);  //for int and real
-                                        memcpy(&rid, (char *) buffer + buffer_offset + char_len,
-                                               8);
-                                        char_len += 8;
-                                        buffer_offset += char_len;
-                                        breakFlag = true;
-                                        break;
-                                    }
-                } else {
-                    int len_of_string = 0;
-                    memcpy(&len_of_string, (char *) buffer + buffer_offset, 4);
-                    char str_key_array[len_of_string];
-                    memcpy(&str_key_array, (char *) buffer + buffer_offset + 4,
-                           len_of_string);
-                    string str1_key(str_key_array, len_of_string);
-                    
-                    int low_key_len = 0;
-                    memcpy(&low_key_len, highkey, 4);
-                    char low_key_array[low_key_len];
-                    memcpy(&low_key_array, (char *) highkey + 4, low_key_len);
-                    string low_key(low_key_array, low_key_len);
-                    
-                    int high_key_len = 0;
-                    memcpy(&high_key_len, highkey, 4);
-                    char high_key_array[high_key_len];
-                    memcpy(&high_key_array, (char *) highkey + 4, high_key_len);
-                    string high_key(high_key_array, high_key_len);
-                    
-                    if ((!highkeyinclusive && (str1_key < high_key)
-                         && ((!lowkeyinclusive && (str1_key > low_key))
-                             || (lowkeyinclusive && (str1_key >= low_key))))
-                        || (highkeyinclusive && (str1_key <= high_key)
-                            && ((!lowkeyinclusive
-                                 && (str1_key > low_key))
-                                || (lowkeyinclusive
-                                    && (str1_key >= low_key))))) {
-                                    memcpy(&key, (char *) buffer + buffer_offset, char_len); //len_of_string+4);  //for int and real
-                                    memcpy(&rid, (char *) buffer + buffer_offset + char_len,
-                                           8);
-                                    char_len += 8;
-                                    buffer_offset += char_len;
-                                    breakFlag = true;
-                                    break;
-                                }
-                }
-            }
-            
-        }
-        
-        char_len += 8;
-        buffer_offset += char_len;
-    }
-    
-    if (breakFlag == false) {
-        return 0;
-    } else {
-        currentOffset = buffer_offset;
-        return 1;
-    }
-    
+
+	int num_of_slots = 0;
+	memcpy(&num_of_slots, (char *) buffer + NUM_OF_INDEX_BLOCK, 2);
+
+	int buffer_offset = 0;
+
+	//seek leftkey and exit based on highkey
+	//need to have an exit condition when the highkey
+	//while scanning if any rid is -1,u skip that record
+	//exitConditions -
+	//based on high key,if(highkey !=null && key>=highkey) retutn -1;
+	//after iterating through all the nodes,check the leaf flag,if it's -1,again exit
+
+	int breakFlag = false;
+	for (int i = 0; i < num_of_slots; i++) {
+		int char_len = 0;
+
+		if (attribType != TypeVarChar) {
+			char_len += 4;
+			//-------addition----------
+			int highKeyCheck = 0;
+			if(highKey != NULL){
+				memcpy(&highKeyCheck, (char *) buffer + buffer_offset, 4);
+				if (((int *) highkey) != NULL
+						&& highKeyCheck > (*(int *) highkey)) {
+					return -1;
+			}
+				//-----------
+			}
+
+		} else {
+			memcpy(&char_len, (char *) buffer + buffer_offset, 4); //for varchar
+			char_len += 4;
+			//----------addition-------
+			//convert highkey to string
+			if(highKey != NULL){
+				int high_key_check_len = 0;
+				memcpy(&high_key_check_len, highKey, 4);
+				char high_key_array[high_key_check_len];
+				memcpy(&high_key_array, (char *) highKey + 4, high_key_check_len);
+				string high_key_string(high_key_array, high_key_check_len);
+			}
+
+			//convert the key from buffer to string
+			int stringKeyLength = 0;
+			memcpy(&stringKeyLength, (char *) buffer + buffer_offset, 4);
+			char stringKeyArray[stringKeyLength];
+			memcpy(stringKeyArray, (char *) buffer + buffer_offset + 4,
+					stringKeyLength);
+
+			if (stringKeyArray > highkey) {
+				return -1;
+			}
+			//------------------------------
+		}
+
+		int pageNum = -1;
+		memcpy(&pageNum, (char *) buffer + buffer_offset + char_len, 4);
+
+		if (buffer_offset >= currentOffset && pageNum!=0) {
+			if (lowkey == NULL && highkey == NULL) {
+				memcpy(key, (char *) buffer + buffer_offset, char_len); //for int and real
+				memcpy(&rid, (char *) buffer + buffer_offset + char_len, 8);
+				char_len += 8;
+				buffer_offset += char_len;
+				breakFlag = true;
+				break;
+			} else if (lowkey == NULL) {
+
+				if (attribType == TypeInt) {
+					int keyCheck = 0;
+					memcpy(&keyCheck, (char *) buffer + buffer_offset,
+							char_len); //for int and real
+
+					if ((highkeyinclusive && (keyCheck <= *((int*) highkey)))
+							|| (!highkeyinclusive
+									&& keyCheck < *((int*) highkey))) {
+						memcpy(key, &keyCheck, 4);  //for int and real
+						memcpy(&rid, (char *) buffer + buffer_offset + char_len,
+								8);
+						char_len += 8;
+						buffer_offset += char_len;
+						breakFlag = true;
+						break;
+					}
+				} else if (attribType == TypeReal) {
+					float keyCheck = 0;
+					memcpy(&keyCheck, (char *) buffer + buffer_offset,
+							char_len);  //for int and real
+
+					if ((highkeyinclusive && (keyCheck <= *((float*) highkey)))
+							|| (!highkeyinclusive
+									&& keyCheck < *((float*) highkey))) {
+						memcpy(key, &keyCheck, 4);  //for int and real
+						memcpy(&rid, (char *) buffer + buffer_offset + char_len,
+								8);
+						char_len += 8;
+						buffer_offset += char_len;
+						breakFlag = true;
+						break;
+					}
+				} else {
+					int len_of_string = 0;
+					memcpy(&len_of_string, (char *) buffer + buffer_offset, 4);
+					char str_key_array[len_of_string];
+					memcpy(&str_key_array, (char *) buffer + buffer_offset + 4,
+							len_of_string);
+					string str1_key(str_key_array, len_of_string);
+
+					int high_key_len = 0;
+					memcpy(&high_key_len, highKey, 4);
+					char high_key_array[high_key_len];
+					memcpy(&high_key_array, (char *) highKey + 4, high_key_len);
+					string high_key(high_key_array, high_key_len);
+
+					if (((highkeyinclusive && (str1_key <= high_key)))
+							|| (!highkeyinclusive && (str1_key < high_key))) {
+						memcpy(&key, (char *) buffer + buffer_offset, char_len);
+						memcpy(&rid, (char *) buffer + buffer_offset + char_len,
+								8);
+						char_len += 8;
+						buffer_offset += char_len;
+						breakFlag = true;
+						break;
+					}
+				}
+
+			} else if (highkey == NULL) {
+				if (attribType == TypeInt) {
+					int keyCheck = 0;
+					memcpy(&keyCheck, (char *) buffer + buffer_offset,
+							char_len); //for int and real
+
+					if ((lowkeyinclusive && (keyCheck >= *((int*) lowkey)))
+							|| (!lowkeyinclusive && keyCheck > *((int*) lowkey))) {
+						memcpy(key, &keyCheck, 4);  //for int and real
+						memcpy(&rid, (char *) buffer + buffer_offset + char_len,
+								8);
+						char_len += 8;
+						buffer_offset += char_len;
+						breakFlag = true;
+						break;
+					}
+				} else if (attribType == TypeReal) {
+					float keyCheck = 0;
+					memcpy(&keyCheck, (char *) buffer + buffer_offset,
+							char_len); //for int and real
+
+					if ((lowkeyinclusive && (keyCheck >= *((float*) lowkey)))
+							|| (!lowkeyinclusive
+									&& keyCheck > *((float*) lowkey))) {
+						memcpy(key, &keyCheck, 4);  //for int and real
+						memcpy(&rid, (char *) buffer + buffer_offset + char_len,
+								8);
+						char_len += 8;
+						buffer_offset += char_len;
+						breakFlag = true;
+						break;
+					}
+				} else {
+					int len_of_string = 0;
+					memcpy(&len_of_string, (char *) buffer + buffer_offset, 4);
+					char str_key_array[len_of_string];
+					memcpy(&str_key_array, (char *) buffer + buffer_offset + 4,
+							len_of_string);
+					string str1_key(str_key_array, len_of_string);
+
+					int low_key_len = 0;
+					memcpy(&low_key_len, lowKey, 4);
+					char low_key_array[low_key_len];
+					memcpy(&low_key_array, (char *) lowKey + 4, low_key_len);
+					string low_key(low_key_array, low_key_len);
+
+					if (((lowkeyinclusive && (str1_key >= low_key)))
+							|| (!lowkeyinclusive && str1_key > low_key)) {
+						memcpy(key, (char *) buffer + buffer_offset, char_len); //len_of_string+4);  //for int and real
+						memcpy(&rid, (char *) buffer + buffer_offset + char_len,
+								8);
+						char_len += 8;
+						buffer_offset += char_len;
+						breakFlag = true;
+						break;
+					}
+				}
+			} else {
+				if (attribType == TypeInt) {
+					int keyCheck = 0;
+					memcpy(&keyCheck, (char *) buffer + buffer_offset,
+							char_len); //for int and real
+
+					if ((!highkeyinclusive && (keyCheck < *((int*) highkey))
+							&& ((!lowkeyinclusive
+									&& (keyCheck > *((int*) lowkey)))
+									|| (lowkeyinclusive
+											&& (keyCheck >= *((int*) lowkey)))))
+							|| (highkeyinclusive
+									&& (keyCheck <= *((int*) highkey))
+									&& ((!lowkeyinclusive
+											&& (keyCheck > *((int*) lowkey)))
+											|| (lowkeyinclusive
+													&& (keyCheck
+															>= *((int*) lowkey)))))) {
+						memcpy(key, &keyCheck, 4);  //for int and real
+						memcpy(&rid, (char *) buffer + buffer_offset + char_len,
+								8);
+						char_len += 8;
+						buffer_offset += char_len;
+						breakFlag = true;
+						break;
+					}
+				} else if (attribType == TypeReal) {
+					float keyCheck = 0;
+					memcpy(&keyCheck, (char *) buffer + buffer_offset,
+							char_len); //for int and real
+
+					if ((!highkeyinclusive && (keyCheck < *((float*) highkey))
+							&& ((!lowkeyinclusive
+									&& (keyCheck > *((float*) lowkey)))
+									|| (lowkeyinclusive
+											&& (keyCheck >= *((float *) lowkey)))))
+							|| (highkeyinclusive
+									&& (keyCheck <= *((float*) highkey))
+									&& ((!lowkeyinclusive
+											&& (keyCheck > *((float*) lowkey)))
+											|| (lowkeyinclusive
+													&& (keyCheck
+															>= *((float*) lowkey)))))) {
+						memcpy(key, &keyCheck, 4);  //for int and real
+						memcpy(&rid, (char *) buffer + buffer_offset + char_len,
+								8);
+						char_len += 8;
+						buffer_offset += char_len;
+						breakFlag = true;
+						break;
+					}
+				} else {
+					int len_of_string = 0;
+					memcpy(&len_of_string, (char *) buffer + buffer_offset, 4);
+					char str_key_array[len_of_string];
+					memcpy(&str_key_array, (char *) buffer + buffer_offset + 4,
+							len_of_string);
+					string str1_key(str_key_array, len_of_string);
+
+					int low_key_len = 0;
+					memcpy(&low_key_len, lowKey, 4);
+					char low_key_array[low_key_len];
+					memcpy(&low_key_array, (char *) lowKey + 4, low_key_len);
+					string low_key(low_key_array, low_key_len);
+
+					int high_key_len = 0;
+					memcpy(&high_key_len, highKey, 4);
+					char high_key_array[high_key_len];
+					memcpy(&high_key_array, (char *) highKey + 4, high_key_len);
+					string high_key(high_key_array, high_key_len);
+
+					if ((!highkeyinclusive && (str1_key < high_key)
+							&& ((!lowkeyinclusive && (str1_key > low_key))
+									|| (lowkeyinclusive && (str1_key >= low_key))))
+							|| (highkeyinclusive && (str1_key <= high_key)
+									&& ((!lowkeyinclusive
+											&& (str1_key > low_key))
+											|| (lowkeyinclusive
+													&& (str1_key >= low_key))))) {
+						memcpy(key, (char *) buffer + buffer_offset, char_len);
+						memcpy(&rid, (char *) buffer + buffer_offset + char_len,////test 13 fails here
+								8);
+						char_len += 8;
+						buffer_offset += char_len;
+						breakFlag = true;
+						break;
+					}
+				}
+			}
+
+		}
+
+		char_len += 8;
+		buffer_offset += char_len;
+	}
+
+	if (breakFlag == false) {
+		return 0;
+	} else {
+		currentOffset = buffer_offset;
+		return 1;
+	}
+
 }
 
 RC IX_ScanIterator::close() {
-	return -1;
+	return 0;
 }
 
 IXFileHandle::IXFileHandle() {
@@ -1453,7 +1521,7 @@ IXFileHandle::IXFileHandle() {
 
 RC IndexManager::printPage(IXFileHandle &ixfileHandle, int pageNum,
 		const void *key) {
-	void *buffer = calloc(4096, 1);
+	void *buffer = calloc(PAGE_SIZE, 1);
 	ixfileHandle.fileHandle.readPage(pageNum, buffer);
 	int type = 0;
 	short free_space_of_page;

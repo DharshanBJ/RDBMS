@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <sys/stat.h>
 #include <cstdio>
+#include<iostream>
 #include <cstring>
 
 
@@ -205,14 +206,14 @@ RC FileHandle::readPage(PageNum pageNum, void *data)
 {
     unsigned num = getNumberOfPages();
     if(pageNum > num)return -1;
-    FILE* pageFile = getPageFilePtr();
-    if(pageFile==NULL)return -1;//? check to if file exists or not?
-    fseek ( pageFile , pageNum*PAGE_SIZE , SEEK_SET );
-    fread(data,PAGE_SIZE,1,pageFile);
-    if(ferror(pageFile))return -1;// read page failed
-    rewind(pageFile);
+//    FILE* pageFile = getPageFilePtr();
+    if(file_Ptr==NULL)return -1;//? check to if file exists or not?
+    fseek ( file_Ptr , pageNum*PAGE_SIZE , SEEK_SET );
+    fread(data,PAGE_SIZE,1,file_Ptr);
+    if(ferror(file_Ptr))return -1;// read page failed
+    rewind(file_Ptr);
     readPageCounter = readPageCounter +1;
-    incrementCounterValue(pageFile, 0);
+    incrementCounterValue(file_Ptr, 0);
     return 0;
 }
 

@@ -66,39 +66,39 @@ private:
 	static IndexManager *_index_manager;
 	//PagedFileManager *pfm;
 
-	RC readOverHeads(const void *key, int type, void *buffer,
-			short &free_space_of_page, short &num_of_slots, int &char_len); //to compute (parameters in the function) the overhead
+//	RC readOverHeads(const void *key, int type, void *buffer,
+//			short &free_space_of_page, short &num_of_slots, int &char_len); //to compute (parameters in the function) the overhead
 //	RC readRootPage(IXFileHandle &ixfileHandle); //to read root page num
-	RC createNewIntermediatePage(IXFileHandle &ixfileHandle, PageNum leftPage,
-			PageNum rightPage); //to create a new intermediate page with all the overheads set ready to use
-	RC createNewLeafPage(); //to create a new leaf page with all the overheads set ready to use
-	RC updateRootPage(IXFileHandle &ixfileHandle, unsigned root_page_num); //to update Root node
-	RC insertIntoIntermediatePage(IXFileHandle &ixfileHandle, const void *key,
-			PageNum page_ptr, int type, void *buffer); //,short free_space_of_page, short num_of_slots, int char_len);//to insert key and pointer to non-leaf /intermediate page
-	RC insertIntoLeafPage(IXFileHandle &ixfileHandle, const void *key,
-			const RID &rid, int type, void *buffer); //,short free_space_of_page, short num_of_slots, int char_len);//to insert key and pointer to leaf page
-	RC searchLeafNode(const void *key, void *buffer, int type); //to search the key in leaf node
+//	RC createNewIntermediatePage(IXFileHandle &ixfileHandle, PageNum leftPage,
+//			PageNum rightPage); //to create a new intermediate page with all the overheads set ready to use
+//	RC createNewLeafPage(); //to create a new leaf page with all the overheads set ready to use
+//	RC updateRootPage(IXFileHandle &ixfileHandle, unsigned root_page_num); //to update Root node
+//	RC insertIntoIntermediatePage(IXFileHandle &ixfileHandle, const void *key,
+//			PageNum page_ptr, int type, void *buffer); //,short free_space_of_page, short num_of_slots, int char_len);//to insert key and pointer to non-leaf /intermediate page
+//	RC insertIntoLeafPage(IXFileHandle &ixfileHandle, const void *key,
+//			const RID &rid, int type, void *buffer); //,short free_space_of_page, short num_of_slots, int char_len);//to insert key and pointer to leaf page
+//	RC searchLeafNode(const void *key, void *buffer, int type); //to search the key in leaf node
 //	RC searchIntermediateNode(const void *key, int &pagePtr, void *buffer,
 //			int type); //to search the key in intermediate node
 //	RC compareEntryKeyIndex(const void *key, void *comparisonEntry, int type,
 //			int compare_len); //, short node_type);//compare the key and entry generic function
-	RC compareDeleteEntryKeyRID(const void *key, void *comparisonEntry,
-			const RID &rid, int type, int compare_len);
-	RC deleteEntryInLeaf(IXFileHandle &ixfileHandle, const void *key,
-			const RID &rid, int type, void *buffer, short free_space_of_page,
-			short num_of_slots, int char_len); //to delete the key index for the matching <key,rid>
-	RC splitLeafPage(IXFileHandle &ixfileHandle, int insert_dest,
-			const void *key, const RID &rid, int type, void *buffer,
-			void *prop_key, RID &prop_page_num, int &prop_key_len); //splits the leaf page and inserts the key requested into it
-	RC splitIntermediatePage(IXFileHandle &ixfileHandle, int insert_dest,
-			const void *key, const RID &rid, int type, void *buffer,
-			void *prop_key, RID &prop_page_num, int &prop_key_len); //splits the intermediate page and inserts the key propagated from new leaf into it
-	RC insertReccursion(unsigned page_num, const void *key,
-			IXFileHandle &ixfileHandle, const RID &rid, int type,
-			void*prop_page_pointer, RID &prop_page_num, int &prop_len); //function called to insert the key (recursive) one;
-	RC splitLeafSearch(void *buffer, short num_of_slots, int type, int &pos); //search helper for splitting leaf nodes sends index position number & offset
-	RC splitIntermediateSearch(void *buffer, short num_of_slots, int type,
-			int &pos); //search helper for splitting intermediate nodes sends index position number & offset
+//	RC compareDeleteEntryKeyRID(const void *key, void *comparisonEntry,
+//			const RID &rid, int type, int compare_len);
+//	RC deleteEntryInLeaf(IXFileHandle &ixfileHandle, const void *key,
+//			const RID &rid, int type, void *buffer, short free_space_of_page,
+//			short num_of_slots, int char_len); //to delete the key index for the matching <key,rid>
+//	RC splitLeafPage(IXFileHandle &ixfileHandle, int insert_dest,
+//			const void *key, const RID &rid, int type, void *buffer,
+//			void *prop_key, RID &prop_page_num, int &prop_key_len); //splits the leaf page and inserts the key requested into it
+//	RC splitIntermediatePage(IXFileHandle &ixfileHandle, int insert_dest,
+//			const void *key, const RID &rid, int type, void *buffer,
+//			void *prop_key, RID &prop_page_num, int &prop_key_len); //splits the intermediate page and inserts the key propagated from new leaf into it
+//	RC insertReccursion(unsigned page_num, const void *key,
+//			IXFileHandle &ixfileHandle, const RID &rid, int type,
+//			void*prop_page_pointer, RID &prop_page_num, int &prop_len); //function called to insert the key (recursive) one;
+//	RC splitLeafSearch(void *buffer, short num_of_slots, int type, int &pos); //search helper for splitting leaf nodes sends index position number & offset
+//	RC splitIntermediateSearch(void *buffer, short num_of_slots, int type,
+//			int &pos); //search helper for splitting intermediate nodes sends index position number & offset
 //	RC printPage(IXFileHandle &ixfileHandle, int pageNum,const void *key);
 };
 
@@ -120,7 +120,7 @@ public:
     // Terminate index scan
     RC close();
     
-    IXFileHandle *ixfileHandle;
+    IXFileHandle *ixfileHandle;//*
     
     AttrType attrType;
     
