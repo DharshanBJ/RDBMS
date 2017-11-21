@@ -126,6 +126,7 @@ public:
     
     PageNum currentPageNum;
     int currentOffset;
+    void *insert_enrty_buffer;
     
     bool lowKeyInclusive;
     bool highKeyInclusive;

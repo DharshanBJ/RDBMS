@@ -1085,6 +1085,8 @@ RC IndexManager::scan(IXFileHandle &ixfileHandle, const Attribute &attribute,
 	if (ixfileHandle.fileHandle.getPageFilePtr() == NULL)
 		return -1;
 
+	void *currentPageBuffer = calloc(PAGE_SIZE,1);
+
 	ix_ScanIterator.ixfileHandle = &ixfileHandle;
 	ix_ScanIterator.attrType = attribute.type;
 	ix_ScanIterator.currentPageNum = 0;
@@ -1093,7 +1095,7 @@ RC IndexManager::scan(IXFileHandle &ixfileHandle, const Attribute &attribute,
 	ix_ScanIterator.highKey = highKey;
 	ix_ScanIterator.lowKeyInclusive = lowKeyInclusive;
 	ix_ScanIterator.highKeyInclusive = highKeyInclusive;
-
+	ix_ScanIterator.insert_enrty_buffer =currentPageBuffer;
 	return 0;
 
 }
@@ -1113,7 +1115,7 @@ RC IX_ScanIterator::getNextEntry(RID &rid, void *key) {
 	//find the leaf page and the offset from where i have to start scanning-do this by checking with low key
 	//check if the leaf key satisfies the condition >low key and < high key,if it does then return that key and rid
 
-	void *insert_enrty_buffer = calloc(PAGE_SIZE, 1);
+//	void *insert_enrty_buffer = calloc(PAGE_SIZE, 1);
 
 	if (currentPageNum == 0 && currentOffset == -1) {
 		// Traverse down the tree to the leaf, using non-leaves along the way
@@ -1149,7 +1151,7 @@ RC IX_ScanIterator::getNextEntry(RID &rid, void *key) {
 					lowKeyInclusive, highKeyInclusive, attrType, rid, key);
 
 			if (result == -1) {
-				free(insert_enrty_buffer);
+//				free(insert_enrty_buffer);
 				return -1;
 			} else if (result == 1) {
 				currentPageNum = insert_dest;
@@ -1166,7 +1168,7 @@ RC IX_ScanIterator::getNextEntry(RID &rid, void *key) {
 					currentPageNum = overFlowFlag;
 					currentOffset = 0;
 				} else {
-					free(insert_enrty_buffer);
+//					free(insert_enrty_buffer);
 					return -1;
 				}
 			}
@@ -1176,7 +1178,7 @@ RC IX_ScanIterator::getNextEntry(RID &rid, void *key) {
 		int insert_dest = currentPageNum;
 
 		//directly call the search function here
-		ixfileHandle->fileHandle.readPage(insert_dest, insert_enrty_buffer);
+//		ixfileHandle->fileHandle.readPage(insert_dest, insert_enrty_buffer);
 		int result = -1;
 
 		//search function to update the key and rid
@@ -1185,7 +1187,7 @@ RC IX_ScanIterator::getNextEntry(RID &rid, void *key) {
 					lowKeyInclusive, highKeyInclusive, attrType, rid, key);
 
 			if (result == -1) {
-				free(insert_enrty_buffer);
+//				free(insert_enrty_buffer);
 				return -1;
 			} else if (result == 1) {
 				currentPageNum = insert_dest;
@@ -1202,7 +1204,7 @@ RC IX_ScanIterator::getNextEntry(RID &rid, void *key) {
 					currentPageNum = overFlowFlag;
 					currentOffset = 0;
 				} else {
-					free(insert_enrty_buffer);
+//					free(insert_enrty_buffer);
 					return -1;
 				}
 			}
@@ -1210,7 +1212,7 @@ RC IX_ScanIterator::getNextEntry(RID &rid, void *key) {
 		} while (result == 0);
 	}
 
-	free(insert_enrty_buffer);
+//	free(insert_enrty_buffer);
 	return 0;
 }
 
@@ -1255,23 +1257,24 @@ RC IX_ScanIterator::scanLeafNodes(void * buffer, const void *lowkey,
 			char_len += 4;
 			//----------addition-------
 			//convert highkey to string
-			if(highKey != NULL){
+			if(NULL !=highKey){
 				int high_key_check_len = 0;
 				memcpy(&high_key_check_len, highKey, 4);
 				char high_key_array[high_key_check_len];
 				memcpy(&high_key_array, (char *) highKey + 4, high_key_check_len);
 				string high_key_string(high_key_array, high_key_check_len);
-			}
 
-			//convert the key from buffer to string
-			int stringKeyLength = 0;
-			memcpy(&stringKeyLength, (char *) buffer + buffer_offset, 4);
-			char stringKeyArray[stringKeyLength];
-			memcpy(stringKeyArray, (char *) buffer + buffer_offset + 4,
-					stringKeyLength);
+				//convert the key from buffer to string
+				int stringKeyLength = 0;
+				memcpy(&stringKeyLength, (char *) buffer + buffer_offset, 4);
+				char stringKeyArray[stringKeyLength];
+				memcpy(stringKeyArray, (char *) buffer + buffer_offset + 4,
+						stringKeyLength);
+				string key_string(high_key_array, high_key_check_len);
 
-			if (stringKeyArray > highkey) {
-				return -1;
+				if (key_string > high_key_string) {
+					return -1;
+				}
 			}
 			//------------------------------
 		}
@@ -1280,14 +1283,14 @@ RC IX_ScanIterator::scanLeafNodes(void * buffer, const void *lowkey,
 		memcpy(&pageNum, (char *) buffer + buffer_offset + char_len, 4);
 
 		if (buffer_offset >= currentOffset && pageNum!=0) {
-			if (lowkey == NULL && highkey == NULL) {
+			if (NULL == lowkey && NULL ==highKey) {
 				memcpy(key, (char *) buffer + buffer_offset, char_len); //for int and real
 				memcpy(&rid, (char *) buffer + buffer_offset + char_len, 8);
 				char_len += 8;
 				buffer_offset += char_len;
 				breakFlag = true;
 				break;
-			} else if (lowkey == NULL) {
+			} else if (NULL == lowkey) {
 
 				if (attribType == TypeInt) {
 					int keyCheck = 0;
@@ -1347,7 +1350,7 @@ RC IX_ScanIterator::scanLeafNodes(void * buffer, const void *lowkey,
 					}
 				}
 
-			} else if (highkey == NULL) {
+			} else if (NULL ==highKey) {
 				if (attribType == TypeInt) {
 					int keyCheck = 0;
 					memcpy(&keyCheck, (char *) buffer + buffer_offset,
@@ -1510,6 +1513,7 @@ RC IX_ScanIterator::scanLeafNodes(void * buffer, const void *lowkey,
 }
 
 RC IX_ScanIterator::close() {
+	free(insert_enrty_buffer);
 	return 0;
 }
 
