@@ -155,12 +155,13 @@ RC IndexManager::insertEntry(IXFileHandle &ixfileHandle,
 
 	if (insert_dest == 0) {
 		// Create the root<leaf> page, mark it as a leaf, it's page 1
-		void *new_page_buffer = calloc(PAGE_SIZE, 1);
+//		void *new_page_buffer = calloc(PAGE_SIZE, 1);
+		unsigned char new_page_buffer[PAGE_SIZE];
 
 		unsigned page_no = newPage(ixfileHandle, new_page_buffer, 1, true, 0,
 				0);
 
-		free(new_page_buffer);
+//		free(new_page_buffer);
 
 		// Store the new page to page 0
 		updateRootPage(ixfileHandle, page_no);
@@ -171,11 +172,12 @@ RC IndexManager::insertEntry(IXFileHandle &ixfileHandle,
 
 	RID prop_page_num;
 	int prop_key_len = 0;
-	void *prop_page_pointer = calloc(2000, 1);	//PAGE_SIZE
+//	void *prop_page_pointer = calloc(2000, 1);	//PAGE_SIZE
+	unsigned char prop_page_pointer[PAGE_SIZE];
 	insertReccursion(insert_dest, key, ixfileHandle, rid, type,
 			prop_page_pointer, prop_page_num, prop_key_len);
 
-	free(prop_page_pointer);
+//	free(prop_page_pointer);
 	return 0;
 }
 
@@ -183,7 +185,8 @@ RC insertReccursion(unsigned page_num, const void *key,
 		IXFileHandle &ixfileHandle, const RID &rid, int type,
 		void *prop_page_pointer, RID &prop_page_num, int &prop_key_len) {
 
-	void *insert_entry_buffer = calloc(PAGE_SIZE, 1);
+//	void *insert_entry_buffer = calloc(PAGE_SIZE, 1);
+	unsigned char insert_entry_buffer[PAGE_SIZE];
 
 	//pull the root page
 	ixfileHandle.fileHandle.readPage(page_num, insert_entry_buffer);
@@ -222,7 +225,8 @@ RC insertReccursion(unsigned page_num, const void *key,
 				prop_key_len = -1;
 			} else {
 
-				void *insert_key_pointer = calloc(prop_key_len, 1);
+//				void *insert_key_pointer = calloc(prop_key_len, 1);
+				unsigned char insert_key_pointer[PAGE_SIZE];
 				memcpy(insert_key_pointer, prop_page_pointer, prop_key_len);
 				RID insert_page_num_ptr;
 				insert_page_num_ptr.pageNum = prop_page_num.pageNum;
@@ -259,10 +263,10 @@ RC insertReccursion(unsigned page_num, const void *key,
 							ixfileHandle.fileHandle.getNumberOfPages();
 					updateRootPage(ixfileHandle, num_of_pages);
 
-					free(root_page_buffer);
+//					free(root_page_buffer);
 				}
 
-				free(insert_key_pointer);
+//				free(insert_key_pointer);
 			}
 		}
 	} else if (is_leaf_page == 1) {
@@ -279,8 +283,9 @@ RC insertReccursion(unsigned page_num, const void *key,
 			//if the page number to be inserted was a root then create a new root and update
 			unsigned root_node_page_num = readRootPage(ixfileHandle);
 			if (page_num == root_node_page_num) {
-				void *root_page_buffer = calloc(PAGE_SIZE, 1);
+//				void *root_page_buffer = calloc(PAGE_SIZE, 1);
 
+				unsigned char root_page_buffer[PAGE_SIZE];
 				memcpy((char *) root_page_buffer, &page_num, 4);
 				memcpy((char *) root_page_buffer + 4, prop_page_pointer,
 						prop_key_len);
@@ -304,11 +309,11 @@ RC insertReccursion(unsigned page_num, const void *key,
 						ixfileHandle.fileHandle.getNumberOfPages();
 				updateRootPage(ixfileHandle, num_of_pages);
 
-				free(root_page_buffer);
+//				free(root_page_buffer);
 			}
 		}
 	}
-	free(insert_entry_buffer);
+//	free(insert_entry_buffer);
 	return 0;
 }
 RC splitLeafPage(IXFileHandle &ixfileHandle, int insert_dest, const void *key,
@@ -322,8 +327,8 @@ RC splitLeafPage(IXFileHandle &ixfileHandle, int insert_dest, const void *key,
 	readOverHeads(key, type, input_leaf_buffer, free_space_of_page,
 			num_of_slots, char_len);
 
-	void *right_page = calloc(PAGE_SIZE, 1);	//new page mapping buffer
-
+//	void *right_page = calloc(PAGE_SIZE, 1);	//new page mapping buffer
+	unsigned char right_page[PAGE_SIZE];
 	// Get the point to split the existing page at
 	int split_index_pos_num;
 	int split_page_offset = splitLeafSearch(input_leaf_buffer, num_of_slots,
@@ -383,7 +388,7 @@ RC splitLeafPage(IXFileHandle &ixfileHandle, int insert_dest, const void *key,
 	// Write the buffer back to leaf page
 	ixfileHandle.fileHandle.writePage(insert_dest, input_leaf_buffer);
 
-	free(right_page);
+//	free(right_page);
 	return 0;
 }
 
@@ -465,8 +470,8 @@ RC splitIntermediatePage(IXFileHandle &ixfileHandle, int insert_dest,
 	int char_len;
 	readOverHeads(key, type, input_buffer, free_space_of_page, num_of_slots,
 			char_len);
-	void *right_page = calloc(PAGE_SIZE, 1);		//new page mapping buffer
-
+//	void *right_page = calloc(PAGE_SIZE, 1);		//new page mapping buffer
+	unsigned char right_page[PAGE_SIZE];
 	// Get the point to split the existing page at
 	int split_index_pos_num;
 	int split_page_offset = splitIntermediateSearch(input_buffer, num_of_slots,
@@ -528,7 +533,7 @@ RC splitIntermediatePage(IXFileHandle &ixfileHandle, int insert_dest,
 	// Write the buffer back to leaf page
 	ixfileHandle.fileHandle.writePage(insert_dest, input_buffer);
 
-	free(right_page);
+//	free(right_page);
 	return 0;
 }
 
@@ -653,8 +658,8 @@ RC IndexManager::deleteEntry(IXFileHandle &ixfileHandle,
 
 	// Traverse down the tree to the leaf, using non-leaves along the way
 	int insert_dest = readRootPage(ixfileHandle);
-	void *buffer = calloc(PAGE_SIZE, 1);
-
+//	void *buffer = calloc(PAGE_SIZE, 1);
+	unsigned char buffer[PAGE_SIZE];
 	//pull the root page
 	ixfileHandle.fileHandle.readPage(insert_dest, buffer);
 
@@ -685,7 +690,7 @@ RC IndexManager::deleteEntry(IXFileHandle &ixfileHandle,
 	if (result == 0)
 		ixfileHandle.fileHandle.writePage(insert_dest, buffer);
 
-	free(buffer);
+//	free(buffer);
 	return result;
 }
 
@@ -704,7 +709,8 @@ RC deleteEntryInLeaf(IXFileHandle &ixfileHandle, const void *key,
 
 	int buffer_offset_to_delete = 0;
 	int char_len = 0;
-	void *comparisonEntry = calloc(PAGE_SIZE, 1);
+//	void *comparisonEntry = calloc(PAGE_SIZE, 1);
+	unsigned char comparisonEntry[PAGE_SIZE];
 	for (int i = 0; i < (int) num_of_slots; i++) {
 		char_len = 0;
 
@@ -747,7 +753,7 @@ RC deleteEntryInLeaf(IXFileHandle &ixfileHandle, const void *key,
 
 	}
 
-	free(comparisonEntry);
+//	free(comparisonEntry);
 	return result;
 }
 
@@ -821,7 +827,8 @@ RC searchIntermediateNode(const void *key, int &pagePtr, void *buffer,
 	memcpy(&num_of_index_slots, (char*) buffer + NUM_OF_INDEX_BLOCK, 2);
 
 	int buffer_offset = 4;	//4->left pointer of first key
-	void *comparisonEntry = calloc(PAGE_SIZE, 1);
+//	void *comparisonEntry = calloc(PAGE_SIZE, 1);
+	unsigned char comparisonEntry[PAGE_SIZE];
 	for (int i = 0; i < (int) num_of_index_slots; i++) {
 		int char_len = 0;
 
@@ -851,7 +858,7 @@ RC searchIntermediateNode(const void *key, int &pagePtr, void *buffer,
 	}
 	memcpy(&pagePtr, (char *) buffer + buffer_offset - 4, 4);//read left page number Ptr onto pagePTR
 
-	free(comparisonEntry);
+//	free(comparisonEntry);
 	return buffer_offset;
 	//pagePtr is updated with appropriate page num for child intermediate/leaf node and buffer_offset for insert index -> returned (4<default> , max<4090>)
 }

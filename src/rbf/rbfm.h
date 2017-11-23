@@ -12,8 +12,8 @@ using namespace std;
 // Record ID
 typedef struct
 {
-  unsigned pageNum;    // page number
-  unsigned slotNum;    // slot number in the page
+  int pageNum;    // page number
+  int slotNum;    // slot number in the page
 } RID;
 
 
