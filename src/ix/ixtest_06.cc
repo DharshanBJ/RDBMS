@@ -27,7 +27,7 @@ int testCase_6(const string &indexFileName, const Attribute &attribute)
     unsigned key;
     int inRidSlotNumSum = 0;
     int outRidSlotNumSum = 0;
-    unsigned numOfTuples = 1000;
+    unsigned numOfTuples = 1000;//87040;
 
     // create index file
     RC rc = indexManager->createFile(indexFileName);
@@ -47,8 +47,13 @@ int testCase_6(const string &indexFileName, const Attribute &attribute)
         rc = indexManager->insertEntry(ixfileHandle, attribute, &key, rid);
         assert(rc == success && "indexManager::insertEntry() should not fail.");
 
+//        cout<<"no. of inserts"<<i<<endl;
         inRidSlotNumSum += rid.slotNum;
     }
+
+//    int root_page = indexManager->readRootPage(ixfileHandle);
+
+//    rc = indexManager->printPage(ixfileHandle, root_page, &root_page);
 
     // Scan
     rc = indexManager->scan(ixfileHandle, attribute, NULL, NULL, true, true, ix_ScanIterator);
@@ -99,7 +104,7 @@ int main()
     attrAge.name = "age";
     attrAge.type = TypeInt;
 
-    remove("age_idx");
+    indexManager->destroyFile("age_idx");
 
     RC result = testCase_6(indexFileName, attrAge);
     if (result == success) {

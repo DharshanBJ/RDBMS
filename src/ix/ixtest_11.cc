@@ -48,7 +48,11 @@ int testCase_11(const string &indexFileName, const Attribute &attribute){
         if (inRecordNum % 200000 == 0) {
             cerr << inRecordNum << " inserted - rid: " << rid.pageNum << " " << rid.slotNum << endl;
         }
+//        cout<<"no. of inserts"<<i<<endl;
     }
+//    int root_page = indexManager->readRootPage(ixfileHandle);
+//
+//     rc = indexManager->printPage(ixfileHandle, root_page, &root_page);
 
     // scan
     rc = indexManager->scan(ixfileHandle, attribute, NULL, NULL, true, true, ix_ScanIterator);
@@ -56,8 +60,10 @@ int testCase_11(const string &indexFileName, const Attribute &attribute){
 
     // Iterate
     cerr << endl;
+    int i=0;
     while(ix_ScanIterator.getNextEntry(rid, &key) == success)
     {
+//    	cout<<"i :"<<i<<" "<<rid.pageNum<<" "<< rid.slotNum<<endl;
         if (rid.pageNum != key + 1 || rid.slotNum != key + 2) {
             cerr << "Wrong entries output... The test failed." << endl;
             rc = ix_ScanIterator.close();
@@ -68,6 +74,7 @@ int testCase_11(const string &indexFileName, const Attribute &attribute){
         if (outRecordNum % 200000 == 0) {
             cerr << outRecordNum << " scanned. " << endl;
         }
+        i++;
     }
 
     // Inconsistency?
@@ -213,7 +220,7 @@ int main()
     attrAge.name = "age";
     attrAge.type = TypeInt;
 
-    remove("age_idx");
+    indexManager->destroyFile("age_idx");
 
     RC result = testCase_11(indexFileName, attrAge);
     if (result == success) {
