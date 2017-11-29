@@ -9,6 +9,11 @@
 
 using namespace std;
 
+#define SIZE_OF_SLOT 4
+#define SIZE_OF_LAST_BLOCK 2
+#define SEEK_FREE_SPACE 4094
+#define SEEK_NUM_OF_RECORDS 4092
+
 // Record ID
 typedef struct
 {

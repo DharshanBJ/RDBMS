@@ -9,8 +9,7 @@ RC TEST_RM_8(const string &tableName, vector<RID> &rids, vector<int> &sizes)
 
     RID rid; 
     void *tuple = malloc(4000);
-    int numTuples = 200;
-
+    int numTuples = 2000;
     // GetAttributes
     vector<Attribute> attrs;
     RC rc = rm->getAttributes(tableName, attrs);
@@ -25,7 +24,7 @@ RC TEST_RM_8(const string &tableName, vector<RID> &rids, vector<int> &sizes)
     {
         // Test insert Tuple
         int size = 0;
-        memset(tuple, 0, 200);
+        memset(tuple, 0, 2000);
         prepareLargeTuple(attrs.size(), nullsIndicator, i, tuple, &size);
 
         rc = rm->insertTuple(tableName, tuple, rid);

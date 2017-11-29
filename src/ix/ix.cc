@@ -97,7 +97,7 @@ RC IndexManager::newPage(IXFileHandle &ixfileHandle, void *new_page_buffer,
 	short freeSpace = 0;
 	short numSlots = 0;
 	int next_page_num = -1;
-	int page_no = 0;
+	int page_no = -1;
 
 	//prepare the buffer with footer values
 	memcpy((char *) new_page_buffer + NODE_FLAG_BLOCK, &isLeafPage, 2);
@@ -121,7 +121,7 @@ RC IndexManager::newPage(IXFileHandle &ixfileHandle, void *new_page_buffer,
 			cout << "File->write page at new page() failed" << endl;
 	} else { //append page
 		res = ixfileHandle.fileHandle.appendPage(new_page_buffer);
-		page_no = ixfileHandle.fileHandle.getNumberOfPages();
+		page_no = ixfileHandle.fileHandle.getNumberOfPages()-1;
 		if (res < 0)
 			cout << "File->append page at new page() failed" << endl;
 	}
@@ -153,7 +153,7 @@ RC IndexManager::insertEntry(IXFileHandle &ixfileHandle,
 	// Traverse down the tree to the leaf, using non-leaves along the way
 	int insert_dest = readRootPage(ixfileHandle);
 
-	if (insert_dest == 0) {
+	if (insert_dest == -1) {
 		// Create the root<leaf> page, mark it as a leaf, it's page 1
 //		void *new_page_buffer = calloc(PAGE_SIZE, 1);
 		unsigned char new_page_buffer[PAGE_SIZE];
@@ -168,16 +168,16 @@ RC IndexManager::insertEntry(IXFileHandle &ixfileHandle,
 		insert_dest = page_no;//==-------------------------------------------------use this instead
 	}
 
-//	insert_dest = readRootPage(ixfileHandle);//-----------------------------------------not needed...chechk?
+//	insert_dest = readRootPage(ixfileHandle);//-----------------------------------------not needed...check?
 
 	RID prop_page_num;
 	int prop_key_len = 0;
-//	void *prop_page_pointer = calloc(2000, 1);	//PAGE_SIZE
-	unsigned char prop_page_pointer[PAGE_SIZE];
+	void *prop_page_pointer = calloc(2000, 1);	//PAGE_SIZE
+//	unsigned char prop_page_pointer[PAGE_SIZE];
 	insertReccursion(insert_dest, key, ixfileHandle, rid, type,
 			prop_page_pointer, prop_page_num, prop_key_len);
 
-//	free(prop_page_pointer);
+	free(prop_page_pointer);
 	return 0;
 }
 
@@ -197,15 +197,6 @@ RC insertReccursion(unsigned page_num, const void *key,
 	int char_len;
 	readOverHeads(key, type, insert_entry_buffer, free_space_of_page,
 			num_of_slots, char_len);
-
-//	memcpy(&free_space_of_page, (char *) insert_entry_buffer + FREE_SPACE_BLOCK, 2);
-//	memcpy(&num_of_slots, (char *) insert_entry_buffer + NUM_OF_INDEX_BLOCK, 2);
-//	if (type == 2) {
-//		memcpy(&char_len, (char *) key, 4);
-//		char_len += 4;	//char length + 4 bytes representing it
-//	} else {
-//		char_len = 4;
-//	}
 
 	//read leaf flag on the root page
 	short is_leaf_page = 0;
@@ -261,7 +252,7 @@ RC insertReccursion(unsigned page_num, const void *key,
 					ixfileHandle.fileHandle.appendPage(root_page_buffer);
 					unsigned num_of_pages =
 							ixfileHandle.fileHandle.getNumberOfPages();
-					updateRootPage(ixfileHandle, num_of_pages);
+					updateRootPage(ixfileHandle, num_of_pages-1);//changed
 
 //					free(root_page_buffer);
 				}
@@ -307,7 +298,7 @@ RC insertReccursion(unsigned page_num, const void *key,
 				ixfileHandle.fileHandle.appendPage(root_page_buffer);
 				unsigned num_of_pages =
 						ixfileHandle.fileHandle.getNumberOfPages();
-				updateRootPage(ixfileHandle, num_of_pages);
+				updateRootPage(ixfileHandle, num_of_pages-1);//changed
 
 //				free(root_page_buffer);
 			}
@@ -380,7 +371,7 @@ RC splitLeafPage(IXFileHandle &ixfileHandle, int insert_dest, const void *key,
 
 	// Create a new page for the split page
 	ixfileHandle.fileHandle.appendPage(right_page);
-	prop_page_num.pageNum = ixfileHandle.fileHandle.getNumberOfPages();
+	prop_page_num.pageNum = ixfileHandle.fileHandle.getNumberOfPages()-1;
 
 	memcpy((char *) input_leaf_buffer + NEXT_PAGE_PTR, &prop_page_num.pageNum,
 			4);
@@ -528,7 +519,7 @@ RC splitIntermediatePage(IXFileHandle &ixfileHandle, int insert_dest,
 
 	// Create a new page for the split page
 	ixfileHandle.fileHandle.appendPage(right_page);
-	prop_page_num.pageNum = ixfileHandle.fileHandle.getNumberOfPages();
+	prop_page_num.pageNum = ixfileHandle.fileHandle.getNumberOfPages()-1;
 
 	// Write the buffer back to leaf page
 	ixfileHandle.fileHandle.writePage(insert_dest, input_buffer);

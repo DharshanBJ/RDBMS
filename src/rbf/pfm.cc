@@ -45,9 +45,15 @@ RC createHiddenPage(FILE *file){
     offset += sizeof(int);
     
     //root pointer pageNum
+    value =-1;//--------------changed
     memcpy((char *)pageBuffer+offset, &value, sizeof(int));
     offset += sizeof(int);
     
+    //table-id counter
+	value =0;
+	memcpy((char *)pageBuffer+offset, &value, sizeof(int));
+	offset += sizeof(int);
+
     
     fwrite(pageBuffer, 4096, 1, file);
     fflush(file);
@@ -143,70 +149,54 @@ RC incrementCounterValue(FILE* file, int offset){
     if(offset == 0){
         fseek(file, offset*4, SEEK_SET);
         int val = 0;
-        fread(&val, sizeof(int), 1, file);
+        fread(&val, 4, 1, file);
+        if(ferror(file))return -1; // reading page failed
         val++;
         fseek(file, offset*4, SEEK_SET);
-        fwrite(&val, sizeof(int), 1, file);
+        fwrite(&val, 4, 1, file);
         fflush(file);
     }
     else if(offset == 1){
         fseek(file, offset*4, SEEK_SET);
         int val = 0;
-        fread(&val, sizeof(int), 1, file);
+        fread(&val, 4, 1, file);
+        if(ferror(file))return -1; // reading page failed
         val++;
         fseek(file, offset*4, SEEK_SET);
         fwrite(&val, sizeof(int), 1, file);
+        if(ferror(file))return -1; // reading page failed
         fflush(file);
     }
     else if(offset == 2){
         fseek(file, offset*4, SEEK_SET);
         int val = 0;
-        fread(&val, sizeof(int), 1, file);
+        fread(&val, 4, 1, file);
+        if(ferror(file))return -1; // reading page failed
         val++;
         fseek(file, offset*4, SEEK_SET);
         fwrite(&val, sizeof(int), 1, file);
+        if(ferror(file))return -1; // reading page failed
+        fflush(file);
+    }else if(offset == 4){
+        fseek(file, offset*4, SEEK_SET);
+        int val = 0;
+        fread(&val, 4, 1, file);
+        if(ferror(file))return -1; // reading page failed
+        val++;
+        fseek(file, offset*4, SEEK_SET);
+        fwrite(&val, sizeof(int), 1, file);
+        if(ferror(file))return -1; // reading page failed
         fflush(file);
     }
     return 0;
 }
 
-//decrement counter values
-//RC decrementCounterValue(FILE* file, int offset){
-//    if(offset == 0){
-//        fseek(file, offset*4, SEEK_SET);
-//        int val = 0;
-//        fread(&val, sizeof(int), 1, file);
-//        val--;
-//        fseek(file, offset*4, SEEK_SET);
-//        fwrite(&val, sizeof(int), 1, file);
-//        fflush(file);
-//    }
-//    else if(offset == 1){
-//        fseek(file, offset*4, SEEK_SET);
-//        int val = 0;
-//        fread(&val, sizeof(int), 1, file);
-//        val--;
-//        fseek(file, offset*4, SEEK_SET);
-//        fwrite(&val, sizeof(int), 1, file);
-//        fflush(file);
-//    }
-//    else if(offset == 2){
-//        fseek(file, offset*4, SEEK_SET);
-//        int val = 0;
-//        fread(&val, sizeof(int), 1, file);
-//        val--;
-//        fseek(file, offset*4, SEEK_SET);
-//        fwrite(&val, sizeof(int), 1, file);
-//        fflush(file);
-//    }
-//    return 0;
-//}
-
 RC FileHandle::readPage(PageNum pageNum, void *data)
 {
     unsigned num = getNumberOfPages();
+    pageNum +=1;
     if(pageNum > num)return -1;
-//    FILE* pageFile = getPageFilePtr();
+//    FILE* pageFile = file_Ptr;//getPageFilePtr();
     if(file_Ptr==NULL)return -1;//? check to if file exists or not?
     fseek ( file_Ptr , pageNum*PAGE_SIZE , SEEK_SET );
     fread(data,PAGE_SIZE,1,file_Ptr);
@@ -221,6 +211,7 @@ RC FileHandle::readPage(PageNum pageNum, void *data)
 RC FileHandle::writePage(PageNum pageNum, const void *data)
 {
     unsigned num = getNumberOfPages();
+    pageNum +=1;
     if(pageNum > num)return -1;//to check if the page exists in the file
     FILE* pageFile = getPageFilePtr();
     fseek ( pageFile , pageNum*PAGE_SIZE , SEEK_SET );
@@ -261,7 +252,7 @@ unsigned FileHandle::getNumberOfPages()
 
 //for IX
 //add root pageNum write
-RC FileHandle::writeRootPageNumber(unsigned pageNum){
+RC FileHandle::writeRootPageNumber(int pageNum){
     FILE* file = getPageFilePtr();
     int offset = 3;
     fseek(file, offset*4, SEEK_SET);
@@ -277,6 +268,17 @@ RC FileHandle::readRootPageNumber(){
     fseek(file, offset*4, SEEK_SET);
     int val = 0;
     fread(&val, sizeof(int), 1, file);
+    if(ferror(file))return -1; // reading page failed
+    return val;
+}
+
+RC FileHandle::readTableId(){
+    FILE* file = getPageFilePtr();
+    int offset = 4;
+    fseek(file, offset*4, SEEK_SET);
+    int val = 0;
+    fread(&val, sizeof(int), 1, file);
+    if(ferror(file))return -1; // reading page failed
     return val;
 }
 
@@ -285,18 +287,21 @@ RC getCounterValues(FILE* file, int offset){
         fseek(file, offset*4, SEEK_SET);
         int val = 0;
         fread(&val, sizeof(int), 1, file);
+        if(ferror(file))return -1; // reading page failed
         return val;
     }
     else if(offset == 1){
         fseek(file, offset*4, SEEK_SET);
         int val = 0;
         fread(&val, sizeof(int), 1, file);
+        if(ferror(file))return -1; // reading page failed
         return val;
     }
     else if(offset == 2){
         fseek(file, offset*4, SEEK_SET);
         int val = 0;
         fread(&val, sizeof(int), 1, file);
+        if(ferror(file))return -1; // reading page failed
         return val;
     }
     return -1;

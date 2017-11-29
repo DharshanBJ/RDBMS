@@ -1,4 +1,3 @@
-
 #include "rm_test_util.h"
 
 RC RM_TEST_EXTRA_2(const string &tableName, const int nameLength, const string &name, const int age, const int height, const int salary, const int ssn)
@@ -20,7 +19,7 @@ RC RM_TEST_EXTRA_2(const string &tableName, const int nameLength, const string &
     attr.length = 4;
     RC rc = rm->addAttribute(tableName, attr);
     assert(rc == success && "RelationManager::addAttribute() should not fail.");
-
+    
     // GetAttributes
     vector<Attribute> attrs;
     rc = rm->getAttributes(tableName, attrs);
@@ -50,6 +49,7 @@ RC RM_TEST_EXTRA_2(const string &tableName, const int nameLength, const string &
         cout << "***** [FAIL] Extra Credit Test Case 2 Failed *****" << endl << endl;
         free(tuple);
         free(returnedData);
+        free(nullsIndicator);
         return -1;
     }
     else
@@ -57,6 +57,7 @@ RC RM_TEST_EXTRA_2(const string &tableName, const int nameLength, const string &
         cout << "***** Extra Credit Test Case 2 Finished. The result will be examined. *****" << endl << endl;
         free(tuple);
         free(returnedData);
+        free(nullsIndicator);
         return success;
     }
 
@@ -73,7 +74,7 @@ int main()
     rcmain = createTable("tbl_employee200");
 
     // Add Attributes
-    rcmain = RM_TEST_EXTRA_2("tbl_employee200", 7, name2, 22, 180, 6000, 12347);
+    rcmain = RM_TEST_EXTRA_2("tbl_employee200", 7, name2, 22, 180, 6000, 123479765);
 
     return rcmain;
 }

@@ -1,5 +1,3 @@
-
-
 #include "rm_test_util.h"
 
 RC RM_TEST_EXTRA_1(const string &tableName, const int nameLength, const string &name, const int age, const int height, const int salary)
@@ -32,7 +30,7 @@ RC RM_TEST_EXTRA_1(const string &tableName, const int nameLength, const string &
     rc = rm->readAttribute(tableName, rid, "Height", returnedData);
     assert(rc == success && "RelationManager::readAttribute() should not fail.");
 
-    if(memcmp((char *)returnedData+nullAttributesIndicatorActualSize, (char *)tuple+14+nullAttributesIndicatorActualSize, 4) != 0)
+    if(memcmp((char *)returnedData+nullAttributesIndicatorActualSize, (char *)tuple+22+nullAttributesIndicatorActualSize, 4) != 0)
     {
         cout << "RelationManager::readAttribute() failed." << endl;
         cout << "***** [FAIL] Extra Credit Test Case 1 Failed. *****"<<endl;
@@ -59,6 +57,7 @@ RC RM_TEST_EXTRA_1(const string &tableName, const int nameLength, const string &
             cout << "***** [FAIL] Extra Credit Test Case 1 Failed. *****"<<endl;
             free(tuple);
             free(returnedData);
+            free(nullsIndicator);
         } else {
             rc = rm->printTuple(attrs2, returnedData);
             assert(rc == success && "RelationManager::printTuple() should not fail.");
@@ -67,6 +66,7 @@ RC RM_TEST_EXTRA_1(const string &tableName, const int nameLength, const string &
 
     free(tuple);
     free(returnedData);
+    free(nullsIndicator);
 
     cout << "***** Extra Credit Test Case 1 finished. The result will be examined. *****" << endl;
     return success;
@@ -74,7 +74,7 @@ RC RM_TEST_EXTRA_1(const string &tableName, const int nameLength, const string &
 
 int main()
 {
-    string name1 = "Tester";
+    string name1 = "Peter Anteater";
 
     // Drop table for the case where we execute this test multiple times.
     // We ignore the error code for this operation.
@@ -82,8 +82,7 @@ int main()
 
     // Create a table
     rcmain = createTable("tbl_employee100");
-    rcmain = RM_TEST_EXTRA_1("tbl_employee100", 6, name1, 24, 170, 5000);
+    rcmain = RM_TEST_EXTRA_1("tbl_employee100", 14, name1, 24, 185, 10000);
 
     return rcmain;
 }
-

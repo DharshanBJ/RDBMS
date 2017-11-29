@@ -516,9 +516,9 @@ RC RelationManager::getAttributes(const string &tableName,
 	_rbfm->closeFile(fileHandle);
 
 	//search columns according to tableid
-
+	FileHandle fileHandle2;
 	RM_ScanIterator rmsi2;
-	_rbfm->openFile("Columns", fileHandle);
+	_rbfm->openFile("Columns", fileHandle2);
 
 	vector<string> Attrb;
 	Attrb.push_back("column-name");
@@ -531,7 +531,7 @@ RC RelationManager::getAttributes(const string &tableName,
 	vector<Attribute> getColumnInfo;	//creating an attribute
 	getAttributeDescription(getColumnInfo);	//creating record descriptor
 
-	_rbfm->scan(fileHandle, getColumnInfo, "table-id", EQ_OP, tableId, Attrb,
+	_rbfm->scan(fileHandle2, getColumnInfo, "table-id", EQ_OP, tableId, Attrb,
 			rmsi2.rbfmsi);
 
 	//RecordBasedFileManager* _rbfm = RecordBasedFileManager::instance();
@@ -576,7 +576,7 @@ RC RelationManager::getAttributes(const string &tableName,
 
 	rmsi2.close();
 
-	_rbfm->closeFile(fileHandle);
+	_rbfm->closeFile(fileHandle2);
 	free(data);
 	free(tableId);
 	free(value);
