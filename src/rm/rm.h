@@ -26,6 +26,18 @@ public:
   RC close();
 };
 
+//added nov24
+// RM_IndexScanIterator is an iterator to go through index entries
+class RM_IndexScanIterator {
+ public:
+  RM_IndexScanIterator() {};  	// Constructor
+  ~RM_IndexScanIterator() {}; 	// Destructor
+
+  // "key" follows the same format as in IndexManager::insertEntry()
+  RC getNextEntry(RID &rid, void *key) {return RM_EOF;};  	// Get next matching entry
+  RC close() {return -1;};             			// Terminate index scan
+};
+
 
 // Relation Manager
 class RelationManager
@@ -61,9 +73,6 @@ public:
 
   RC getAttributeDescription(vector<Attribute> &recordDescriptor);
 
-  RC createTable_catalog(const string &tableName, const vector<Attribute> &attrs, bool fromOuter);
-
-  RC checkTableName(const string &tableName);
   RC TableName_check(const string &tableName);
 
   // Scan returns an iterator to allow the caller to go through the results one by one.
@@ -75,16 +84,26 @@ public:
       const vector<string> &attributeNames, // a list of projected attributes
       RM_ScanIterator &rm_ScanIterator);
 
+  //added nov24
+  RC createIndex(const string &tableName, const string &attributeName);
+  RC destroyIndex(const string &tableName, const string &attributeName);
+  RC indexScan(const string &tableName,
+                        const string &attributeName,
+                        const void *lowKey,
+                        const void *highKey,
+                        bool lowKeyInclusive,
+                        bool highKeyInclusive,
+                        RM_IndexScanIterator &rm_IndexScanIterator);
+
+  RC getOneAttributeFromName(const string &tableName, const string &attributeName, Attribute &attr);
+  RC getIndexDescription(vector<Attribute> &indexDescriptor);
+
 // Extra credit work (10 points)
 public:
   RC addAttribute(const string &tableName, const Attribute &attr);
 
   RC dropAttribute(const string &tableName, const string &attributeName);
 
-  //added
-//  std::map<string, int> _tableMap;
-//  std::map<int, vector<Attribute> > _columnsMap;
-  //RecordBasedFileManager* _rbfm;
 
 
 protected:

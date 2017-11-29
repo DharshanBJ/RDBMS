@@ -1,5 +1,7 @@
 #include "rm.h"
 
+#include "../ix/ix.h"
+
 #include <cmath>
 #include <cstdlib>
 #include <cstring>
@@ -21,40 +23,28 @@ RelationManager::~RelationManager() {
 //int tableId=0;
 RC RelationManager::createCatalog() {
 	RecordBasedFileManager* _rbfm = RecordBasedFileManager::instance();
-//-----------------------------------
-//	string meta_tableid = "meta_tableid";
-//	_rbfm->createFile(meta_tableid);
-//
-//	FileHandle fileHandle_table_Id;
-//	_rbfm->openFile(meta_tableid,fileHandle_table_Id);
-//
-////	void * tableid_data=calloc(4,1);
-////	memset(tableid_data,0,sizeof(int));
-//	int tableid_data=0;
-//	fileHandle_table_Id.appendPage(&tableid_data);
-//
-//	//void * tableid_data=calloc(4,1);
-//
-////	fileHandle_table_Id.appendPage(tableid_data);
-//	//tableIdGeneration(meta_tableid);
-//
-//	_rbfm->closeFile(fileHandle_table_Id);
-
-//-----------------------------------------------------------
 
 	FileHandle fileHandle;
 
 	if (_rbfm->openFile("Tables", fileHandle) != 0
-			|| _rbfm->openFile("Columns", fileHandle) != 0) {
+			|| _rbfm->openFile("Columns", fileHandle) !=0 || _rbfm->openFile("Indexes", fileHandle) != 0) {
+
 		_rbfm->createFile("Tables");
 		_rbfm->createFile("Columns");
+		_rbfm->createFile("Indexes");
+
 		vector<Attribute> tableDesc;
 		vector<Attribute> attributeDesc;
+		vector<Attribute> IndexDesc;
+
 		getTableDescription(tableDesc);
 		getAttributeDescription(attributeDesc);
-		//TODO:insert first record for tables and columns
+		getIndexDescription(IndexDesc);
+
+
 		createTable("Tables", tableDesc); //create system table-Tables
 		createTable("Columns", attributeDesc); //create system table-Columns
+		createTable("Indexes", IndexDesc);//create system table-Indexes
 
 	} else {
 		_rbfm->closeFile(fileHandle);
@@ -115,8 +105,29 @@ RC RelationManager::getAttributeDescription(
 	return 0;
 }
 
+RC RelationManager::getIndexDescription(vector<Attribute> &indexDescriptor)
+{
+    Attribute tableId, columnName, indexName;
+    tableId.name = "table-id";
+    tableId.type = TypeInt;
+    tableId.length = sizeof(int);
+    indexDescriptor.push_back(tableId);
+
+    columnName.name = "column-name";
+    columnName.type = TypeVarChar;
+    columnName.length = 50;
+    indexDescriptor.push_back(columnName);
+
+    indexName.name = "index-name";
+    indexName.type = TypeVarChar;
+    indexName.length = 50;
+    indexDescriptor.push_back(indexName);
+
+    return 0;
+}
+
 RC RelationManager::TableName_check(const string &tableName) {
-	if (tableName == "Tables" || tableName == "Columns") {
+	if (tableName == "Tables" || tableName == "Columns" || tableName=="Indexes") {
 		return -1;
 	}
 	return 0;
@@ -125,158 +136,10 @@ RC RelationManager::deleteCatalog() {
 	RecordBasedFileManager* _rbfm = RecordBasedFileManager::instance();
 	_rbfm->destroyFile("Tables");
 	_rbfm->destroyFile("Columns");
+    _rbfm->destroyFile("Indexes");
 	return 0;
 }
 
-//RC RelationManager::createTable(const string &tableName,
-//		const vector<Attribute> &attrs) {
-//
-//	FileHandle fileHandle;
-//	RecordBasedFileManager* _rbfm = RecordBasedFileManager::instance();
-//
-//	vector<Attribute> tableInfo; //creating an attribute
-//	getTableDescription(tableInfo); //creating record descriptor
-//
-//	//TODO:Need to calculate the table attribute length
-//	int dataLength = 0;
-//	int tableNameLength = 0;
-//	int nullFieldsIndicatorActualSize = ceil((double) 3 / 8);
-//	void *data = calloc(4096, 1);
-//
-//	int offset = 0;
-//	tableId++;
-//	tableNameLength = tableName.length();
-//	//data has to be in insert record format
-//	memset(data, 0, dataLength);	  	//set the buffer as 0 for all locations
-//
-//	//copy the null indicator size bits
-//	memset((char *) data + offset, 0, nullFieldsIndicatorActualSize);
-//	offset += nullFieldsIndicatorActualSize;
-//
-//	memcpy((char *) data + offset, &tableId, sizeof(int)); //copy the table id
-//	offset += sizeof(int);
-//
-//	memcpy((char *) data + offset, &tableNameLength, sizeof(int)); //copy the tablename length
-//	offset += sizeof(int);
-//	//cout << "table name length : " << tableNameLength << endl;
-//
-//	memcpy((char *) data + offset, tableName.c_str(), tableNameLength); //copy the tablename
-//	offset += tableNameLength;
-//
-//	memcpy((char *) data + offset, &tableNameLength, sizeof(int)); //copy the filename length
-//	offset += sizeof(int);
-//	cout << "file name length : " << tableNameLength << endl;
-//
-//	memcpy((char *) data + offset, tableName.c_str(), tableName.length()); //copy the filename
-//	offset += tableName.length();
-//
-//	RID rid;
-//
-//	if (_rbfm->openFile("Tables", fileHandle) != 0) //open the tables file
-//			{
-//		free(data);
-//		return -1;
-//	}
-//	if (_rbfm->insertRecord(fileHandle, tableInfo, data, rid) != 0) //insert the created tables details in 'Tables' table
-//			{
-//
-//		free(data);
-//		return -1;
-//	}
-//
-//	//populate attribute catalog
-//
-//	int columnIndexCount = 1;
-//	RID descRid;
-//	FileHandle columnFileHandle;
-//	if (_rbfm->openFile("Columns", columnFileHandle) != 0) //open columns table
-//			{
-//		return -1;
-//	}
-//	int attrs_size = attrs.size();
-//
-//	// for(vector<Attribute>::const_iterator it = attrs.begin(); it != attrs.end(); it++)//iterate through every attribute
-//	for (int i = 0; i < attrs_size; i++) {
-//		vector<Attribute> columnInfo;
-//		getAttributeDescription(columnInfo);
-//
-//		int attrNameLength = 0;
-//		int nullFieldsIndicatorActualSize = ceil((double) 5 / 8);
-//
-//		attrNameLength = attrs[i].name.length();
-//
-//		void* attrData = malloc(4096);
-//
-//		memset(attrData, 0, 4096); //set the buffer as zero for all locations
-//
-//		int descOffset = 0;
-//		//copy the null indicator size bits
-//		memset((char *) attrData + descOffset, 0,
-//				nullFieldsIndicatorActualSize);
-//		descOffset += nullFieldsIndicatorActualSize;
-//
-//		memcpy((char *) attrData + descOffset, &tableId, sizeof(int)); //table-id
-//		descOffset += sizeof(int);
-//
-//		memcpy((char *) attrData + descOffset, &attrNameLength, sizeof(int)); //column name length
-//		descOffset += sizeof(int);
-//		cout << "attrNameLength : " << attrNameLength << endl;
-//
-//		memcpy((char *) attrData + descOffset, (attrs[i].name).c_str(),
-//				attrNameLength); //column name
-//		// memcpy((char *)attrData + descOffset, (it->name).c_str(), attrNameLength);//column name
-//		descOffset += attrNameLength;
-//
-//		memcpy((char *) attrData + descOffset, &(attrs[i].type),
-//				sizeof(TypeInt));	                    //column type
-//		// memcpy((char *)attrData + descOffset, &(it->type), sizeof(TypeInt));
-//		descOffset += sizeof(TypeInt);
-//
-//		memcpy((char *) attrData + descOffset, &(attrs[i].length), sizeof(int));//column length
-//		// memcpy((char *)attrData + descOffset, &(it->length), sizeof(int));
-//		descOffset += sizeof(int);
-//		cout << "attrName column Length : " << attrs[i].length << endl;
-//
-//		memcpy((char *) attrData + descOffset, &columnIndexCount, sizeof(int));	//column index count is the column position
-//		columnIndexCount++;
-//		descOffset += sizeof(int);
-//
-//		// memcpy((char *)attrData + descOffset, &isExisted, sizeof(int));
-//		//insertRecord(FileHandle &fileHandle,const vector<Attribute> &recordDescriptor, const void *data, RID &rid)
-//		// readRecord(FileHandle &fileHandle,const vector<Attribute> &recordDescriptor, const RID &rid, void *data)
-//		//    printRecord(const vector<Attribute> &recordDescriptor, const void *data)
-//
-//		//	                      void *data=malloc(4096);
-//		//	                      _rbfm->readRecord(columnFileHandle,columnInfo,descRid,data);
-//		//	                      _rbfm->printRecord(columnInfo,data);
-//		//	                      free(data);
-//
-//		if (_rbfm->insertRecord(columnFileHandle, columnInfo, attrData, descRid)
-//				!= 0)//insert the created tables attribute details in 'Columns' table
-//				{
-//			free(attrData);
-//			return -1;
-//		}
-//		free(attrData);
-//
-//		//print the inserted records
-//		//	                      void *data1=malloc(4096);
-//		//	                      _rbfm->readRecord(columnFileHandle,columnInfo,descRid,data1);
-//		//	                      _rbfm->printRecord(columnInfo,data1);
-//		//	                      free(data1);
-//
-//	}
-//	if (tableName != "Tables" && tableName != "Columns") {
-//		// Create data file
-//		if (_rbfm->createFile(tableName) != 0)//creating file with the name same as table name
-//				{
-//			return -1;
-//		}
-//
-//		//initialize data file
-//	}
-//	return 0;
-//}
 
 RC RelationManager::createTable(const string &tableName,
 		const vector<Attribute> &attrs) {
@@ -297,23 +160,6 @@ RC RelationManager::createTable(const string &tableName,
 
 //	tableId++;
 	int tableId = rand() % 1000+1;
-
-
-	//----Reading meta data of table ID-----
-
-//	int tableId = 0;
-//	FileHandle fh;
-//	_rbfm->openFile("meta_tableid", fh);
-//
-//	void *meta = malloc(sizeof(int));
-//	fh.readPage(0, meta);
-//
-//	memcpy(&tableId, meta, sizeof(int));
-//	tableId++;
-//	cout<<tableId<<endl;
-//
-//	_rbfm->closeFile(fh);
-	//----------------------------------------
 
 	tableId++;
 	tableNameLength = tableName.length();
@@ -430,25 +276,9 @@ RC RelationManager::createTable(const string &tableName,
 		}
 		free(attrData);
 
-		//print the inserted records
-		//	                      void *data1=malloc(4096);
-		//	                      _rbfm->readRecord(columnFileHandle,columnInfo,descRid,data1);
-		//	                      _rbfm->printRecord(columnInfo,data1);
-		//	                      free(data1);
-
-		//----copy the tableid back to file-----
-
-//		FileHandle fh;
-//		_rbfm->openFile("meta_tableid", fh);
-//        void * data=calloc(4,1);
-//        memcpy(data,&tableId,sizeof(int));
-//		fh.writePage(1,data);
-//		_rbfm->closeFile(fh);
-		//----------------------------------------
-
 
 	}
-	if (tableName != "Tables" && tableName != "Columns") {
+	if (tableName != "Tables" && tableName != "Columns" && tableName != "Indexes") {
 		// Create data file
 		if (_rbfm->createFile(tableName) != 0)//creating file with the name same as table name
 				{
@@ -478,7 +308,9 @@ RC RelationManager::getAttributes(const string &tableName,
 		return getTableDescription(attrs); //for 'Tables' table
 	} else if (tableName == "Columns") {
 		return getAttributeDescription(attrs); //for 'Columns' table
-	}
+	}else if(tableName == "Indexes"){
+        return getIndexDescription(attrs);
+    }
 //TODO:
 	//get tableid from table name
 	RM_ScanIterator rm_si;
@@ -516,9 +348,9 @@ RC RelationManager::getAttributes(const string &tableName,
 	_rbfm->closeFile(fileHandle);
 
 	//search columns according to tableid
-	FileHandle fileHandle2;
+
 	RM_ScanIterator rmsi2;
-	_rbfm->openFile("Columns", fileHandle2);
+	_rbfm->openFile("Columns", fileHandle);
 
 	vector<string> Attrb;
 	Attrb.push_back("column-name");
@@ -531,7 +363,7 @@ RC RelationManager::getAttributes(const string &tableName,
 	vector<Attribute> getColumnInfo;	//creating an attribute
 	getAttributeDescription(getColumnInfo);	//creating record descriptor
 
-	_rbfm->scan(fileHandle2, getColumnInfo, "table-id", EQ_OP, tableId, Attrb,
+	_rbfm->scan(fileHandle, getColumnInfo, "table-id", EQ_OP, tableId, Attrb,
 			rmsi2.rbfmsi);
 
 	//RecordBasedFileManager* _rbfm = RecordBasedFileManager::instance();
@@ -576,7 +408,7 @@ RC RelationManager::getAttributes(const string &tableName,
 
 	rmsi2.close();
 
-	_rbfm->closeFile(fileHandle2);
+	_rbfm->closeFile(fileHandle);
 	free(data);
 	free(tableId);
 	free(value);
@@ -734,7 +566,10 @@ RC RelationManager::scan(const string &tableName,
 	} else if (tableName == "Columns") {
 		getAttributeDescription(attr);
 
-	} else if (getAttributes(tableName, attr) != 0) {
+	} else if(tableName=="Indexes"){
+        getIndexDescription(attr);
+
+    } else if (getAttributes(tableName, attr) != 0) {
 		return -1;
 	}
 
@@ -772,6 +607,237 @@ RC RM_ScanIterator::getNextTuple(RID &rid, void *data)
 RC RM_ScanIterator::close()
 {
 	rbfmsi.close();
+
+    return 0;
+}
+
+//added-nov24
+
+RC RelationManager::createIndex(const string &tableName, const string &attributeName)
+{
+
+    IndexManager *_ix = IndexManager::instance();
+    string indexName = tableName + "_" + attributeName;
+
+    IXFileHandle ixfileHandle;
+    _ix->createFile(indexName);
+    _ix->openFile(indexName, ixfileHandle);
+
+    //get the data from tablename and insert the attribute name data into a new file
+
+    RM_ScanIterator rm_si;
+
+    vector<string> Attrbs;
+    Attrbs.push_back(attributeName);
+
+    scan(tableName, "", NO_OP, NULL, Attrbs, rm_si);//attributeName=attribute.name
+
+    RID rid;
+    char returnedData[4096];
+    Attribute attr;
+    //get single attribute from get attributes
+    if (getOneAttributeFromName(tableName, attributeName, attr) != 0) { //attr will have complete attribute
+        return -1;
+    }
+    //insert the data corresponding to attr into the index file
+    while (rm_si.getNextTuple(rid, returnedData) != RM_EOF) {
+        if (_ix->insertEntry(ixfileHandle, attr, returnedData, rid) != 0) {
+            return -1;
+        }
+    }
+    if (_ix->closeFile(ixfileHandle) != 0) {
+        return -1;
+    }
+
+    rm_si.close();
+
+    //update the Indexes table
+
+    vector<Attribute> indexAttribs;
+    getIndexDescription(indexAttribs);
+
+    //Indexes table has table id,attribute name,index name
+
+    //get the tableid from tablename
+    RM_ScanIterator rmsi;
+
+    vector<string> Attrib;
+    Attrib.push_back("table-id");
+
+    void *value = calloc(4096, 1);
+    int tableName_length = tableName.length();
+    int offset = 0;
+
+    memcpy((char *) value + offset, &tableName_length, sizeof(int));
+    offset += sizeof(int);
+    memcpy((char *) value + offset, tableName.c_str(), tableName_length);
+
+    RecordBasedFileManager *_rbfm = RecordBasedFileManager::instance();
+    FileHandle fileHandle;
+
+    _rbfm->openFile("Tables", fileHandle);
+
+    vector<Attribute> tableInfo;
+    getTableDescription(tableInfo);
+
+    _rbfm->scan(fileHandle, tableInfo, "table-name", EQ_OP, value, Attrib,
+                rmsi.rbfmsi);
+
+    RID rid1;
+    void *data = malloc(100);
+    rmsi.getNextTuple(rid1, data);
+    rmsi.close();
+
+    void *tableId = calloc(100, 1);
+    memcpy(tableId, (char *) data + 1, sizeof(int));//+1 ???????
+
+    _rbfm->closeFile(fileHandle);
+    free(value);
+    free(data);
+
+    void *indexBuffer = calloc(4096, 1);
+
+    int attributeNameLength = attributeName.length();
+    int indexNameLength = indexName.length();
+
+    offset = 0;
+    memcpy((char *) indexBuffer + offset, &tableId, sizeof(int));
+    offset += sizeof(int);
+
+    memcpy((char *) indexBuffer + offset, &attributeNameLength, sizeof(int));
+    offset += sizeof(int);
+    memcpy((char *) indexBuffer + offset, attributeName.c_str(), attributeName.length());
+    offset += attributeName.length();
+
+    memcpy((char *) indexBuffer + offset, &indexNameLength, sizeof(int));
+    offset += sizeof(int);
+    memcpy((char *) indexBuffer + offset, indexName.c_str(), indexName.length());
+    offset += indexName.length();
+
+    RID indexFileRid;
+    FileHandle fh;
+    if (_rbfm->openFile("Indexes", fh) != 0) {
+        return -1;
+    }
+    if (_rbfm->insertRecord(fh, indexAttribs, indexBuffer, indexFileRid) != 0) {
+        return -1;
+    }
+    free(indexBuffer);
+
+    return 0;
+}
+
+
+
+RC RelationManager::getOneAttributeFromName(const string &tableName, const string &attributeName, Attribute &attr)
+{
+    vector<Attribute> attrs;
+    if (getAttributes(tableName, attrs) != 0) {
+        return -1;
+    }
+
+    for (int i = 0; i < attrs.size(); i++) {
+        if (attrs[i].name == attributeName) {
+            attr = attrs[i];
+            return 0;
+        }
+    }
+    return -1;
+}
+
+RC RelationManager::destroyIndex(const string &tableName, const string &attributeName)
+{
+    //destroy the index file
+    //delete its record from the index file
+    string indexName=tableName+"_"+attributeName;
+
+    RecordBasedFileManager* _rbfm = RecordBasedFileManager::instance();
+    IndexManager *_ix = IndexManager::instance();
+    RM_ScanIterator rmsi;
+
+    vector<string> projectedAttr;
+    projectedAttr.push_back("index-name");
+
+    int offset=0;
+    int indexNameLength = indexName.length();
+    void *indexNameData = malloc(4096);
+
+    memcpy(indexNameData, &indexNameLength, sizeof(int));
+    offset+=sizeof(int);
+
+    memcpy((char *)indexNameData +offset, indexName.c_str(), indexNameLength);
+
+    scan("Indexes", "index-name", EQ_OP, indexNameData, projectedAttr, rmsi);
+    free(indexNameData);
+
+    RID rid;
+    char returnedData[4096];
+    FileHandle fileHandle;
+    vector<Attribute> attrs;
+    if(getIndexDescription(attrs) != 0)
+    {
+        return -1;
+    }
+    if(_rbfm->openFile("Indexes", fileHandle) != 0)
+    {
+        return -1;
+    }
+    while(rmsi.getNextTuple(rid, returnedData) != RM_EOF)
+    {
+        if(_rbfm->deleteRecord(fileHandle, attrs, rid) != 0)
+        {
+            return -1;
+        }
+        break;
+    }
+    if(_rbfm->closeFile(fileHandle) != 0)
+    {
+        return -1;
+    }
+
+    // Delete index file
+    if(_ix->destroyFile(indexName) != 0)
+    {
+        return -1;
+    }
+
+
+    return 0;
+
+}
+
+RC RelationManager::indexScan(const string &tableName,
+                      const string &attributeName,
+                      const void *lowKey,
+                      const void *highKey,
+                      bool lowKeyInclusive,
+                      bool highKeyInclusive,
+                      RM_IndexScanIterator &rm_IndexScanIterator)
+{
+
+    string indexName = tableName+"_"+attributeName;
+    RecordBasedFileManager* _rbfm = RecordBasedFileManager::instance();
+    IndexManager *_ix = IndexManager::instance();
+    IXFileHandle ixfileHandle;
+
+    if(_ix->openFile(indexName, ixfileHandle) != 0)
+    {
+        return -1;
+    }
+
+    Attribute attr;
+    if(getOneAttributeFromName(tableName, attributeName, attr) != 0)
+    {
+        return -1;
+    }
+
+    IX_ScanIterator* ix_ScanIterator = new IX_ScanIterator();
+    if(_ix->scan(ixfileHandle, attr, lowKey, highKey, lowKeyInclusive, highKeyInclusive, *ix_ScanIterator))
+    {
+        return -1;
+    }
+
+    //rm_IndexScanIterator.setIXSI(ix_ScanIterator);
 
     return 0;
 }
