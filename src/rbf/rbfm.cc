@@ -61,31 +61,27 @@ RC RecordBasedFileManager::insertRecord(FileHandle &fileHandle,
 	formatRecord(recordDescriptor, data, buffer, record_size); //format the input data to record reqd.
 	int check_page_num = fileHandle.getNumberOfPages();
 	if (check_page_num == 0) {
-		char *write_buffer = (char *) calloc(PAGE_SIZE, sizeof(char)); //malloc(PAGE_SIZE);
+		char *write_buffer = (char *) calloc(PAGE_SIZE, 1); //malloc(PAGE_SIZE);
 		short num_of_slots = 1;
 		short free_space_new_page = (short) (PAGE_SIZE - SIZE_OF_LAST_BLOCK
 				- SIZE_OF_LAST_BLOCK - SIZE_OF_SLOT - record_size); //find the free space
 
-		char *slot = (char *) calloc(2, sizeof(char)); //malloc(2*sizeof(short));
+		char *slot = (char *) calloc(2, 1); //malloc(2*sizeof(short));
 		short slot_record_length = record_size;
 		short slot_offset = 0; //*((short*)fileHandle.getPageFilePtr());//+record_size;
 
 		memcpy(write_buffer, buffer, record_size); //write record_format_buffer data onto a new output write buffer
 
 		memcpy(write_buffer + SEEK_FREE_SPACE, &free_space_new_page,
-				SIZE_OF_LAST_BLOCK); //modify the data with new record + slot and F + N directory
+		SIZE_OF_LAST_BLOCK); //modify the data with new record + slot and F + N directory
 
 		memcpy(write_buffer + SEEK_NUM_OF_RECORDS, &num_of_slots,
-				SIZE_OF_LAST_BLOCK); //modify write buffer with N:no.of slots
+		SIZE_OF_LAST_BLOCK); //modify write buffer with N:no.of slots
 
 		memcpy(write_buffer + SEEK_NUM_OF_RECORDS - SIZE_OF_LAST_BLOCK,
 				&slot_offset, SIZE_OF_LAST_BLOCK); //slot offset put onto write buffer
 		memcpy(write_buffer + SEEK_NUM_OF_RECORDS - SIZE_OF_SLOT,
 				&slot_record_length, SIZE_OF_LAST_BLOCK); //slot record length put onto write buffer
-
-		//---proj 2--test
-//		cout << "slot_offset append:" << slot_offset << endl;
-//		cout << "slot_record_length append:" << slot_record_length << endl;
 
 		//write back and update page nums.
 		fileHandle.appendPage(write_buffer); // append a new file and write the record into it , update the last free space , no. of records , and slot number->offset and length of the record
@@ -102,7 +98,7 @@ RC RecordBasedFileManager::insertRecord(FileHandle &fileHandle,
 
 		fileHandle.readPage(page_num, read_Write_buffer);//read into the buffer the page details
 		memcpy(&free_space_block, read_Write_buffer + SEEK_FREE_SPACE,
-				SIZE_OF_LAST_BLOCK);
+		SIZE_OF_LAST_BLOCK);
 
 		if (free_space_block > (record_size + SIZE_OF_SLOT)) {//if we have free space then update the read_Write_buffer buffer and write.
 			append_recordPage(fileHandle, read_Write_buffer, page_num,
@@ -111,10 +107,9 @@ RC RecordBasedFileManager::insertRecord(FileHandle &fileHandle,
 		} else {//if free space in the last page is less than the record length then traverse through all the pages and check for free space: if any write else append new
 			for (int i = 0; i < page_num - 1; i++) {
 				fileHandle.readPage(page_num, read_Write_buffer);//read into the buffer the page details
-				memcpy(&free_space_block,
-						read_Write_buffer + SEEK_FREE_SPACE,
-						SIZE_OF_LAST_BLOCK);
-				;
+				memcpy(&free_space_block, read_Write_buffer + SEEK_FREE_SPACE,
+				SIZE_OF_LAST_BLOCK);
+
 				if (free_space_block >= (record_size + SIZE_OF_SLOT)) {
 					int num_page = i;
 					append_recordPage(fileHandle, read_Write_buffer, num_page,
@@ -132,11 +127,11 @@ RC RecordBasedFileManager::insertRecord(FileHandle &fileHandle,
 			short slot_offset = 0;//*((short*)fileHandle.getPageFilePtr());//+record_size;
 			memcpy(read_Write_buffer, buffer, record_size * sizeof(char));//write record data(formatted) into a new out buffer
 
-			memcpy(read_Write_buffer + SEEK_FREE_SPACE,
-					&free_space_new_page, SIZE_OF_LAST_BLOCK);//modify the data with new record + slot and F + N directory
+			memcpy(read_Write_buffer + SEEK_FREE_SPACE, &free_space_new_page,
+			SIZE_OF_LAST_BLOCK);//modify the data with new record + slot and F + N directory
 
 			memcpy(read_Write_buffer + SEEK_NUM_OF_RECORDS, &num_of_slots,
-					SIZE_OF_LAST_BLOCK);//modify write buffer with N:no.of slots
+			SIZE_OF_LAST_BLOCK);	//modify write buffer with N:no.of slots
 
 			memcpy(read_Write_buffer + SEEK_NUM_OF_RECORDS - SIZE_OF_LAST_BLOCK,
 					&slot_offset, SIZE_OF_LAST_BLOCK);//slot offset put onto write buffer
@@ -146,13 +141,12 @@ RC RecordBasedFileManager::insertRecord(FileHandle &fileHandle,
 
 			//write back and update page nums.
 			fileHandle.appendPage(read_Write_buffer); // append a new file and write the record into it , update the last free space , no. of records , and slot number->offset and length of the record
-			rid.pageNum = page_num + 1;
+
+			rid.pageNum = page_num + 1;//fileHandle.getNumberOfPages(); //page_num + 1;
 			rid.slotNum = num_of_slots; //or 1 here
 		}
 		free(read_Write_buffer);
 	}
-	printRecord(recordDescriptor, data); //proj 2 test
-	cout << "inserted record---------^" << endl << endl;
 	free(buffer);
 	return 0;
 }
@@ -167,22 +161,12 @@ RC RecordBasedFileManager::append_recordPage(FileHandle &fileHandle,
 
 	short num_of_slots;
 	memcpy(read_Write_buffer + SEEK_FREE_SPACE, &free_space_block,
-			SIZE_OF_LAST_BLOCK); //write the updated free space in to the write buffer
+	SIZE_OF_LAST_BLOCK); //write the updated free space in to the write buffer
 	memcpy(&num_of_slots, read_Write_buffer + SEEK_NUM_OF_RECORDS,
-			SIZE_OF_LAST_BLOCK); //read num of lots from read page
+	SIZE_OF_LAST_BLOCK); //read num of lots from read page
 
 	short slot_record_length = 0;
-	//first set it to prev slot dir rec len and then add to offset to get new offset value and then assign record_size here
-	short slot_offset = 0; //should be set to point to first of record address
-
-//	memcpy(&slot_record_length,
-//			read_Write_buffer + SEEK_NUM_OF_RECORDS
-//					- (num_of_slots * SIZE_OF_SLOT), SIZE_OF_LAST_BLOCK); //to read the record length of the last record slot directory
-//	memcpy(&slot_offset,
-//			read_Write_buffer + SEEK_NUM_OF_RECORDS
-//					- (num_of_slots * SIZE_OF_SLOT) + SIZE_OF_LAST_BLOCK,
-//			SIZE_OF_LAST_BLOCK); //to read the offset of the last record slot directory
-//
+	short slot_offset = 0;
 
 	//project two changes to accomodate reuse on deleted slot rec's in slot dir
 	for (int j = 0; j < num_of_slots; j++) {
@@ -207,20 +191,19 @@ RC RecordBasedFileManager::append_recordPage(FileHandle &fileHandle,
 	//the new slot created should have the greatest slot offset & length
 	//---
 	if (slot_record_length == -1) {
-		slot_record_length = 8; //2*sizeof(int)
+		slot_record_length = 8;
 	}
-	//slot_offset = slot_offset + slot_record_length; //is it the right way?
-	slot_offset = greatest_slot_offset + greatest_slot_offset_len; //proj 2----
-//	cout << "slot_offset write :" << slot_offset << endl;
+
+	slot_offset = greatest_slot_offset + greatest_slot_offset_len;
+
 	slot_record_length = record_size;
-//	cout << "slot_record_length write :" << slot_record_length << endl;
-	//should writing of rec be after updating all or does it fit right here?
+
 	memcpy(read_Write_buffer + slot_offset, buffer, slot_record_length); //write the record formatted data into the out buffer
 
 	if (deleted_slot_ref == 0) {
 		num_of_slots += 1;
 		memcpy(read_Write_buffer + SEEK_NUM_OF_RECORDS, &num_of_slots,
-				SIZE_OF_LAST_BLOCK); //write the updated num of slots to write buffer
+		SIZE_OF_LAST_BLOCK); //write the updated num of slots to write buffer
 		memcpy(
 				read_Write_buffer + SEEK_NUM_OF_RECORDS
 						- (num_of_slots * SIZE_OF_SLOT) + SIZE_OF_LAST_BLOCK,
@@ -230,18 +213,16 @@ RC RecordBasedFileManager::append_recordPage(FileHandle &fileHandle,
 				read_Write_buffer + SEEK_NUM_OF_RECORDS
 						- (num_of_slots * SIZE_OF_SLOT), &slot_record_length,
 				SIZE_OF_LAST_BLOCK); //write new slot dir with the rec len
-		//--proj 2---
 	} else {
 		memcpy(
 				read_Write_buffer + SEEK_NUM_OF_RECORDS
-						- (deleted_slot_ref * SIZE_OF_SLOT)
-						+ SIZE_OF_LAST_BLOCK, &slot_offset, SIZE_OF_LAST_BLOCK); //write the existing slot dir with the offset address
+						- (deleted_slot_ref * SIZE_OF_SLOT) + SIZE_OF_LAST_BLOCK,
+				&slot_offset, SIZE_OF_LAST_BLOCK); //write the existing slot dir with the offset address
 
 		memcpy(
 				read_Write_buffer + SEEK_NUM_OF_RECORDS
 						- (deleted_slot_ref * SIZE_OF_SLOT),
 				&slot_record_length, SIZE_OF_LAST_BLOCK); //write existing slot dir with the rec len
-		//------
 	}
 
 	fileHandle.writePage(page_num, read_Write_buffer);
@@ -253,11 +234,15 @@ RC RecordBasedFileManager::append_recordPage(FileHandle &fileHandle,
 RC RecordBasedFileManager::formatRecord(
 		const vector<Attribute> &recordDescriptor, const void* data,
 		char *buffer, int &record_size) {
+
 	int fieldCount = recordDescriptor.size();
 	int inputNullBytes = ceil((double) fieldCount / 8); //calculate the no. of null bytes
+
 	memcpy(buffer, &fieldCount, sizeof(int)); //to update the first byte of formatted record by no. of fields 1>
+
 	char* null_bytes = (char*) calloc(inputNullBytes, sizeof(char)); //malloc(inputNullBytes);
 	memcpy(null_bytes, data, inputNullBytes);
+
 	memcpy(buffer + sizeof(int), data, inputNullBytes * sizeof(char)); //null bytes appended to record format 2>
 
 	//to calculate no. of non-null bits to get so many no. of offset address bytes allocated
@@ -305,12 +290,10 @@ RC RecordBasedFileManager::formatRecord(
 				break;
 			}
 			case TypeVarChar: {	//check first byte to retrieve the length of the character string
-				char* len_string_data = (char*) malloc(sizeof(int));//malloc(sizeof(int));
-				memcpy(len_string_data, (char *) data + input_stream_offset,
-						sizeof(int));//get 4byte stream representing the length of var chars
+				int len_of_var_char = 0;
+				memcpy(&len_of_var_char, (char *) data + input_stream_offset,
+						4);
 				input_stream_offset += sizeof(int);
-
-				int len_of_var_char = *((int*) len_string_data);//to retrieve the length of the variable characters in the i/p data stream
 				memcpy(buffer + buffer_offset,
 						(char *) data + input_stream_offset, len_of_var_char);
 				buffer_offset += len_of_var_char;
@@ -319,7 +302,6 @@ RC RecordBasedFileManager::formatRecord(
 				memcpy(buffer + field_address_byte_offset, &buffer_offset,
 						sizeof(int));	//update field address
 				field_address_byte_offset += sizeof(int);
-				free(len_string_data);
 				break;
 			}
 			}
@@ -335,43 +317,28 @@ RC RecordBasedFileManager::readRecord(FileHandle &fileHandle,
 		const vector<Attribute> &recordDescriptor, const RID &rid, void *data) {
 
 	bool break_flag = false;
-//	PageNum num_page = rid.pageNum;	//project 1
 	int rid_page_num = rid.pageNum, rid_slot_num = rid.slotNum;
 
 	char *output_read_buffer = (char *) calloc(PAGE_SIZE, sizeof(char));// malloc(PAGE_SIZE);buffer to load the page to be read
 
-//	fileHandle.readPage(num_page, output_read_buffer);//read the page into the buffer
-//
-//	short slot_rec_len = 0, slot_rec_offset = 0;
-//	memcpy(&slot_rec_offset,
-//			output_read_buffer + SEEK_NUM_OF_RECORDS
-//					- (rid.slotNum * SIZE_OF_SLOT) + SIZE_OF_LAST_BLOCK,
-//			SIZE_OF_LAST_BLOCK);	//copy the value of slot rec address
-//	memcpy(&slot_rec_len,
-//			output_read_buffer + SEEK_NUM_OF_RECORDS
-//					- (rid.slotNum * SIZE_OF_SLOT), SIZE_OF_LAST_BLOCK);//copy the rec length from slot dir
-
-	//for project 2 keep a check for slot_rec_len == -1;  introduce a while loop
 	short slot_rec_len = 0, slot_rec_offset = 0;
 	do {
 		fileHandle.readPage(rid_page_num, output_read_buffer);
+
 		memcpy(&slot_rec_offset,
 				output_read_buffer + SEEK_NUM_OF_RECORDS
 						- (rid_slot_num * SIZE_OF_SLOT) + SIZE_OF_LAST_BLOCK,
 				SIZE_OF_LAST_BLOCK);//copy the value of record start offset from slot dir
-//		cout << "slot_rec_offset in read() loop " << slot_rec_offset << endl;//
 		memcpy(&slot_rec_len,
 				output_read_buffer + SEEK_NUM_OF_RECORDS
 						- (rid_slot_num * SIZE_OF_SLOT), SIZE_OF_LAST_BLOCK);//copy the old/existing record length from slot dir
-//		cout << "slot_rec_len in read() loop " << slot_rec_len << endl;	//
+
 		if (slot_rec_len == -1) {
 			memcpy(&rid_page_num, output_read_buffer + slot_rec_offset,
 					sizeof(int));//update with the pointer to new rid page_num
 			memcpy(&rid_slot_num,
 					output_read_buffer + slot_rec_offset + sizeof(int),
 					sizeof(int));	//update with the pointer to rid slot_num
-//			cout << "rid_page_num in read loop : " << rid_page_num << endl;
-//			cout << "rid_slot_num in read loop : " << rid_slot_num << endl;
 		} else if (slot_rec_len == 0) {
 			break_flag = true;
 			break;
@@ -384,6 +351,7 @@ RC RecordBasedFileManager::readRecord(FileHandle &fileHandle,
 		free(output_read_buffer);
 		return -1;
 	}
+
 	//-----------------
 	char *record_buffer = (char *) calloc(slot_rec_len, sizeof(char));// malloc(PAGE_SIZE);//allocate memory to read record from page
 	memcpy(record_buffer, output_read_buffer + slot_rec_offset, slot_rec_len);//copy the record from the page buffer
@@ -414,7 +382,7 @@ RC RecordBasedFileManager::readRecord(FileHandle &fileHandle,
 	int field_end_offset;
 	int out_data_offset = null_byte_count;//offset to keep track of output data stream
 
-	for (unsigned int i = 0; i < (unsigned) field_count; i++) {	//check this---------------------------------------
+	for (unsigned int i = 0; i < (unsigned) field_count; i++) {
 		int num_of_null_bit = i % 8;
 		int num_of_null_bytes = i / 8;
 		if (read_null_byte[num_of_null_bytes] & (1 << (7 - num_of_null_bit))) {
@@ -455,8 +423,6 @@ RC RecordBasedFileManager::readRecord(FileHandle &fileHandle,
 			}
 		}
 	}
-	printRecord(recordDescriptor, data);	//proj 2 test
-	cout << "read record" << endl;
 	free(read_null_byte);
 	free(record_buffer);
 	free(output_read_buffer);
@@ -522,25 +488,19 @@ RC RecordBasedFileManager::updateRecord(FileHandle &fileHandle,
 	char *new_record_buffer = (char *) calloc(PAGE_SIZE, sizeof(char));	//malloc(4096);
 	char *page_buffer = (char *) calloc(PAGE_SIZE, sizeof(char));// malloc(PAGE_SIZE);buffer to load the page to be read
 	short slot_rec_len = 0, slot_rec_offset = 0;
-	printRecord(recordDescriptor, data);	//proj 2 test
-	cout << "record update called" << endl;
 	do {
 		fileHandle.readPage(rid_page_num, page_buffer);
 		memcpy(&slot_rec_offset,
 				page_buffer + SEEK_NUM_OF_RECORDS
 						- (rid_slot_num * SIZE_OF_SLOT) + SIZE_OF_LAST_BLOCK,
 				SIZE_OF_LAST_BLOCK);//copy the value of record start offset from slot dir
-//		cout << "slot_rec_offset in loop " << slot_rec_offset << endl;
 		memcpy(&slot_rec_len,
 				page_buffer + SEEK_NUM_OF_RECORDS
 						- (rid_slot_num * SIZE_OF_SLOT), SIZE_OF_LAST_BLOCK);//copy the old/existing record length from slot dir
-//		cout << "slot_rec_len in loop " << slot_rec_len << endl;	//
 		if (slot_rec_len == -1) {
 			memcpy(&rid_page_num, page_buffer + slot_rec_offset, sizeof(int));//update with the pointer to new rid page_num
 			memcpy(&rid_slot_num, page_buffer + slot_rec_offset + sizeof(int),
 					sizeof(int));	//update with the pointer to rid slot_num
-//			cout << "rid_page_num in loop : " << rid_page_num << endl;
-//			cout << "rid_slot_num in loop : " << rid_slot_num << endl;
 		} else {
 			break;	//break loop if the slot length is not -1
 		}
@@ -550,7 +510,7 @@ RC RecordBasedFileManager::updateRecord(FileHandle &fileHandle,
 
 	short num_of_slots;	//num of slots on the page.
 	memcpy(&num_of_slots, page_buffer + SEEK_NUM_OF_RECORDS,
-			SIZE_OF_LAST_BLOCK);	//copy num of slots value from page buffer
+	SIZE_OF_LAST_BLOCK);	//copy num of slots value from page buffer
 
 	//could make code generic by having num_of_recs here-----to do----
 	if (slot_rec_len == new_record_size) { // updated and existing record len are EQ
@@ -559,13 +519,9 @@ RC RecordBasedFileManager::updateRecord(FileHandle &fileHandle,
 	} else if (slot_rec_len > new_record_size) { // updated new rec len less than existing rec len
 		int diff_len = slot_rec_len - new_record_size;
 
-//		memcpy(page_buffer + slot_rec_offset, new_record_buffer,
-//				new_record_size); //update the page buffer with newly formatted record
-
 		//now shift all the next records on page to left and update slot offsets for each of slot offsets greater than current slot
 
 		//to calculate how much to move
-//		cout << "num_of_slots" << num_of_slots << endl;
 		int move_len = PAGE_SIZE - (slot_rec_offset + slot_rec_len)
 				- ((num_of_slots + 1) * SIZE_OF_SLOT); //length of buffer to be shifted left
 		memmove(page_buffer + slot_rec_offset + new_record_size,
@@ -583,14 +539,7 @@ RC RecordBasedFileManager::updateRecord(FileHandle &fileHandle,
 					page_buffer + SEEK_NUM_OF_RECORDS - (i * SIZE_OF_SLOT)
 							- SIZE_OF_LAST_BLOCK, SIZE_OF_LAST_BLOCK);//copy the record start offset from slot dir
 			if (slot_offset > slot_rec_offset) {
-//				cout << "slot_offset" << i << " in shift left opertn1() :"
-//						<< slot_offset << endl;
-//				if (slot_offset ==-1) {//in case of a deleted record's slot in dir is found //-1
-//					continue;
-//				}
 				slot_offset -= diff_len;
-//				cout << "updated slot_offset of" << i
-//						<< " in shift left opertn1() :" << slot_offset << endl;
 				memcpy(
 						page_buffer + SEEK_NUM_OF_RECORDS - (i * SIZE_OF_SLOT)
 								- SIZE_OF_LAST_BLOCK, &slot_offset,
@@ -616,7 +565,6 @@ RC RecordBasedFileManager::updateRecord(FileHandle &fileHandle,
 				page_buffer + SEEK_NUM_OF_RECORDS + SIZE_OF_LAST_BLOCK,
 				SIZE_OF_LAST_BLOCK);		//copy old free space value
 		int diff_len = new_record_size - slot_rec_len;
-//		cout << "free_space_val : " << free_space_val << endl;
 		if (free_space_val - diff_len >= 0) {//there is space to accommodate new rec with greater len
 			if (rid_slot_num == num_of_slots) {	//to check if the updating rec is the last rec
 				memcpy(page_buffer + slot_rec_offset, new_record_buffer,
@@ -631,10 +579,8 @@ RC RecordBasedFileManager::updateRecord(FileHandle &fileHandle,
 				short last_slot_offset = 0, last_slot_len = 0;
 				memcpy(&last_slot_offset,
 						page_buffer + SEEK_NUM_OF_RECORDS
-								- (num_of_slots * SIZE_OF_SLOT)
-								+ SIZE_OF_LAST_BLOCK, SIZE_OF_LAST_BLOCK);
-//				cout << "last_slot_offset (shift right opertn): "
-//						<< last_slot_offset << endl;
+								- (num_of_slots * SIZE_OF_SLOT)+ SIZE_OF_LAST_BLOCK,
+						SIZE_OF_LAST_BLOCK);
 				memcpy(&last_slot_len,
 						page_buffer + SEEK_NUM_OF_RECORDS
 								- (num_of_slots * SIZE_OF_SLOT),
@@ -642,11 +588,8 @@ RC RecordBasedFileManager::updateRecord(FileHandle &fileHandle,
 				if (last_slot_len == -1) {
 					last_slot_len = 2 * sizeof(int);
 				}
-//				cout << "last_slot_len shift right opertn(): " << last_slot_len
-//						<< endl;
 				int move_len = (last_slot_offset + last_slot_len)
 						- (slot_rec_offset + slot_rec_len); //new_record_size
-//				cout << "move_len (shift right opertn): " << move_len << endl;
 				memmove(page_buffer + slot_rec_offset + new_record_size,
 						page_buffer + slot_rec_offset + slot_rec_len, move_len); //shift right the block starting next record to end to records on page
 				memcpy(
@@ -663,21 +606,12 @@ RC RecordBasedFileManager::updateRecord(FileHandle &fileHandle,
 									- (i * SIZE_OF_SLOT) - SIZE_OF_LAST_BLOCK,
 							SIZE_OF_LAST_BLOCK); //copy the record start offset from slot dir of next slot
 					if (slot_offset > slot_rec_offset) {
-//						cout << "slot_offset" << i
-//								<< " in shift right opertn() :" << slot_offset
-//								<< endl;
-//						if (slot_offset == -1) { //in case of a deleted record's slot in dir is found
-//							continue;
-//						}
 						slot_offset += diff_len;
 						memcpy(
 								page_buffer + SEEK_NUM_OF_RECORDS
 										- (i * SIZE_OF_SLOT)
 										- SIZE_OF_LAST_BLOCK, &slot_offset,
 								SIZE_OF_LAST_BLOCK); //update the slot offset for next slot with its new value (old value -diff in rec len)
-//						cout << "updated slot_offset " << i
-//								<< "in shift right opertn() :" << slot_offset
-//								<< endl;
 					}
 				}
 			}
@@ -688,16 +622,14 @@ RC RecordBasedFileManager::updateRecord(FileHandle &fileHandle,
 					&free_space_val, SIZE_OF_LAST_BLOCK); //update free space with new value
 		} else {
 			insertRecord(fileHandle, recordDescriptor, data, newRid);
-//			cout << "newRid.pageNum : " << newRid.pageNum << endl;
-//			cout << "newRid.slotNum : " << newRid.slotNum << endl;
 			//do shift operation if old/existing record length is greater that 8
 			short diff_len = slot_rec_len - 8;
 			if (diff_len > 0) { //do shift left operation
 				short last_slot_offset = 0, last_slot_len = 0;
 				memcpy(&last_slot_offset,
 						page_buffer + SEEK_NUM_OF_RECORDS
-								- (num_of_slots * SIZE_OF_SLOT)
-								+ SIZE_OF_LAST_BLOCK, SIZE_OF_LAST_BLOCK);
+								- (num_of_slots * SIZE_OF_SLOT)+ SIZE_OF_LAST_BLOCK,
+						SIZE_OF_LAST_BLOCK);
 				memcpy(&last_slot_len,
 						page_buffer + SEEK_NUM_OF_RECORDS
 								- (num_of_slots * SIZE_OF_SLOT),
@@ -717,14 +649,7 @@ RC RecordBasedFileManager::updateRecord(FileHandle &fileHandle,
 									- (i * SIZE_OF_SLOT) - SIZE_OF_LAST_BLOCK,
 							SIZE_OF_LAST_BLOCK); //copy the record start offset from slot dir
 					if (slot_offset > slot_rec_offset) {
-//						cout << "slot_offset in loop 4 : " << slot_offset
-//								<< endl;
-//						if (slot_offset == -1) { //in case of a deleted record's slot in dir is found
-//							continue;
-//						}
 						slot_offset -= diff_len;
-//						cout << "updated slot_offset in loop 4 : "
-//								<< slot_offset << endl;
 						memcpy(
 								page_buffer + SEEK_NUM_OF_RECORDS
 										- (i * SIZE_OF_SLOT)
@@ -783,18 +708,18 @@ RC RecordBasedFileManager::deleteRecord(FileHandle &fileHandle,
 				(char *) buffer_delete + SEEK_NUM_OF_RECORDS
 						- (rid_slotnum * SIZE_OF_SLOT) + SIZE_OF_LAST_BLOCK,
 				SIZE_OF_LAST_BLOCK);//copy the value of record start offset from slot dir
-//		cout << "slot_rec_offset in loop :" << slot_rec_offset << endl;
+
 		memcpy(&slot_rec_len,
 				(char *) buffer_delete + SEEK_NUM_OF_RECORDS
 						- (rid_slotnum * SIZE_OF_SLOT), SIZE_OF_LAST_BLOCK);//copy the old/existing record length from slot directory
-//		cout << "slot_rec_len in loop :" << slot_rec_len << endl;
+
 		if (slot_rec_len == -1) {
 
 			int pointerSlotLen = 0;
 			memcpy(
-					(char*)buffer_delete + SEEK_NUM_OF_RECORDS
+					(char*) buffer_delete + SEEK_NUM_OF_RECORDS
 							- (rid_slotnum * SIZE_OF_SLOT), &pointerSlotLen,
-					SIZE_OF_LAST_BLOCK);//mark the record slot length as 0
+					SIZE_OF_LAST_BLOCK);	//mark the record slot length as 0
 
 			memcpy(&rid_pagenum, (char *) buffer_delete + slot_rec_offset,
 					sizeof(int));//update with the pointer to new rid page_num
@@ -833,8 +758,6 @@ RC RecordBasedFileManager::deleteRecord(FileHandle &fileHandle,
 
 	memcpy((char *) buffer_delete + SEEK_NUM_OF_RECORDS - (rid_slotnum * 4),
 			&updated_length, 2); //4096 - (rid.slotNum * 4) - 2 //delete record's length set to 0
-//	cout << "updated slot len for " << rid_slotnum << " as " << slot_offset
-//			<< endl;
 
 	//update the initial positions of slots in slot directory
 	for (int i = 0; i <= num_of_slots; i++) {
@@ -846,24 +769,22 @@ RC RecordBasedFileManager::deleteRecord(FileHandle &fileHandle,
 				(char *) buffer_delete + SEEK_NUM_OF_RECORDS - ((i + 1) * 4),
 				2);
 		if (slot_offset > slot_rec_offset) {
-//			cout << "slot offset" << slot_offset << endl;
 			slot_offset -= slot_rec_len;
-//			cout << "updated slot offset" << slot_offset << endl;
 			memcpy(
 					(char *) buffer_delete + SEEK_NUM_OF_RECORDS - ((i + 1) * 4)
 							+ 2, &slot_offset, 2);
 		}
 	}
+
 	//update the free space offset
 	memcpy(&freeSpaceoffset, (char *) buffer_delete + SEEK_NUM_OF_RECORDS, 2);
 	freeSpaceoffset += slot_rec_len; // increment the free space offset by deleted record size
+
 	memcpy((uint8_t*) buffer_delete + SEEK_NUM_OF_RECORDS + SIZE_OF_LAST_BLOCK,
 			&freeSpaceoffset, 2);	// Update the free space offset at 4094
-//	cout << "freeSpaceoffset : " << freeSpaceoffset << endl;
 
 	fileHandle.writePage(rid_pagenum, buffer_delete); //write back to the page on the file where updated or existing record was deleted
 
-	///to do tombstone the start and all other
 	free(buffer_delete);
 	return 0;
 }
@@ -875,34 +796,37 @@ RC RecordBasedFileManager::readAttribute(FileHandle &fileHandle,
 	bool break_flag = false;
 	int rid_page_num = rid.pageNum, rid_slot_num = rid.slotNum;
 
-	char *output_read_buffer = (char *) calloc(PAGE_SIZE, sizeof(char)); // malloc(PAGE_SIZE);buffer to load the page to be read
+	//buffer to load the page to be read
+	char *output_read_buffer = (char *) calloc(PAGE_SIZE, sizeof(char));
 
-	//for project 2 keep a check for slot_rec_len == -1;  introduce a while loop
+	//check for updated(rid present in records place) records as well
 	short slot_rec_len = 0, slot_rec_offset = 0;
+
 	do {
 		fileHandle.readPage(rid_page_num, output_read_buffer);
+
 		memcpy(&slot_rec_offset,
 				output_read_buffer + SEEK_NUM_OF_RECORDS
 						- (rid_slot_num * SIZE_OF_SLOT) + SIZE_OF_LAST_BLOCK,
 				SIZE_OF_LAST_BLOCK); //copy the value of record start offset from slot dir
-//		cout << "slot_rec_offset in readAttribute " << slot_rec_offset << endl; //
+
 		memcpy(&slot_rec_len,
 				output_read_buffer + SEEK_NUM_OF_RECORDS
 						- (rid_slot_num * SIZE_OF_SLOT), SIZE_OF_LAST_BLOCK); //copy the old/existing record length from slot dir
-//		cout << "slot_rec_len in readAttribute " << slot_rec_len << endl;	//
+
 		if (slot_rec_len == -1) {
 			memcpy(&rid_page_num, output_read_buffer + slot_rec_offset,
 					sizeof(int)); //update with the pointer to new rid page_num
 			memcpy(&rid_slot_num,
 					output_read_buffer + slot_rec_offset + sizeof(int),
 					sizeof(int));	//update with the pointer to rid slot_num
-//			cout << "rid_page_num in readAttribute : " << rid_page_num << endl;
-//			cout << "rid_slot_num in readAttribute : " << rid_slot_num << endl;
 		} else if (slot_rec_len == 0) {
+			//break if trying to read a deleted record
 			break_flag = true;
 			break;
 		} else {
-			break;	//break loop if the slot length is not -1
+			//break loop if the slot length is not -1
+			break;
 		}
 	} while (slot_rec_len < 0);
 
@@ -910,17 +834,21 @@ RC RecordBasedFileManager::readAttribute(FileHandle &fileHandle,
 		free(output_read_buffer);
 		return -1;
 	}
-	//-----------------
 
-	char *record_buffer = (char *) calloc(slot_rec_len, sizeof(char));// malloc(PAGE_SIZE);//allocate memory to read record from page
-	memcpy(record_buffer, output_read_buffer + slot_rec_offset, slot_rec_len);//copy the record from the page buffer
+	//allocate memory and read record from page
+	char *record_buffer = (char *) calloc(slot_rec_len,1);
+	memcpy(record_buffer, output_read_buffer + slot_rec_offset, slot_rec_len);
 
+	//copy the first byte representing the field size
 	int field_count;
-	memcpy(&field_count, record_buffer, sizeof(int));//copy the first byte representing the field size
+	memcpy(&field_count, record_buffer, sizeof(int));
 
-	int null_byte_count = ceil((double) field_count / 8);//calculate the no. of null bytes
-	//memcpy(data, record_buffer + sizeof(int), null_byte_count);	//load the null byte onto the output data as it is
-	memset(data, 0, 1);	//to set all bits in the null byte (only one byte) to zeros
+	//calculate the no. of null bytes
+	int null_byte_count = ceil((double) field_count / 8);
+
+	//to set all bits in the o/p null byte (only one byte) to zeros
+	char setZero =0;
+	memcpy(data, &setZero, 1);
 
 	char *read_null_byte = (char*) malloc(null_byte_count);
 	memcpy(read_null_byte, record_buffer + sizeof(int), null_byte_count);
@@ -932,75 +860,90 @@ RC RecordBasedFileManager::readAttribute(FileHandle &fileHandle,
 		if (read_null_byte[num_of_null_bytes] & (1 << (7 - num_of_null_bit))) {
 			continue;	//to escape nulls bits : no-op here
 		} else {
-			non_null_bit_count++;
+			non_null_bit_count++;	//count of non null bits
 		}
 	}
 
-	int left_buffer_offset = sizeof(int) + null_byte_count;	//to move the offset to point to the start of the field offset address
+	//to move the offset to point to the start of the field offset address (that points to the end of each field)
+	int left_buffer_offset = sizeof(int) + null_byte_count;
+
+	//to move the offset to point to the start of the fields
 	int right_buffer_offset = sizeof(int) + null_byte_count
-			+ (non_null_bit_count * sizeof(int));//to move the offset to point to the start of the fields
+			+ (non_null_bit_count * sizeof(int));
+
 	int field_end_offset;
-	int out_data_offset = null_byte_count;//offset to keep track of output data stream
+
+	//offset to keep track of output data stream
+	int out_data_offset =1;
 
 	for (int i = 0; i < field_count; i++) {
-		int result = false;
-		;	//to break from for loop
 		int num_of_null_bit = i % 8;
 		int num_of_null_bytes = i / 8;
 		if (read_null_byte[num_of_null_bytes] & (1 << (7 - num_of_null_bit))) {
 			if (recordDescriptor[i].name == attributeName) {
+				//to set the first bit of the null byte to 1
 				char n = 0;
 				n |= (1 << 7);
-				memcpy(data, &n, sizeof(char));	//to set the first bit of the null byte to 1
+				memcpy(data, &n, 1);
 				break;
 			}
-			continue;	//to escape nulls bits : no-op here
+			continue;
 		} else {
+			//load the offset address onto the into variable
 			memcpy(&field_end_offset, record_buffer + left_buffer_offset,
-					sizeof(int));//load the offset address onto the into variable
-			left_buffer_offset += sizeof(int);//move offset to next byte(point to next address block)
+					sizeof(int));
+
+			//move offset to next byte(point to next address block)
+			left_buffer_offset += sizeof(int);
 
 			switch (recordDescriptor[i].type) {
 			case TypeInt: {
 				if (recordDescriptor[i].name == attributeName) {
 					memcpy((char *) data + out_data_offset,
-							record_buffer + right_buffer_offset, sizeof(int));//copy the int 4bytes into the data
-					out_data_offset += sizeof(int);
-					result = true;
+							record_buffer + right_buffer_offset, sizeof(int));
+
+					free(read_null_byte);
+					free(record_buffer);
+					free(output_read_buffer);
+					return 0;
 				}
-				right_buffer_offset += sizeof(int);
+				right_buffer_offset += 4;
 				break;
 			}
 			case TypeReal: {
 				if (recordDescriptor[i].name == attributeName) {
 					memcpy((char *) data + out_data_offset,
-							record_buffer + right_buffer_offset, sizeof(float));//copy the real 4bytes into the data
-					out_data_offset += sizeof(float);
-					result = true;
+							record_buffer + right_buffer_offset, sizeof(float));
+					free(read_null_byte);
+					free(record_buffer);
+					free(output_read_buffer);
+					return 0;
 				}
-				right_buffer_offset += sizeof(float);
+				right_buffer_offset += 4;
 				break;
 			}
 			case TypeVarChar: {
 				int field_length = field_end_offset - right_buffer_offset;
 				if (recordDescriptor[i].name == attributeName) {
+					//4 bytes represents length of characters on data
 					memcpy((char *) data + out_data_offset, &field_length,
-							sizeof(int));//4 bytes represent of no. of characters on data
-					out_data_offset += sizeof(int);
+							sizeof(int));
+					out_data_offset += 4;
 
+					//copy the variable length characters onto the data stream field
 					memcpy((char *) data + out_data_offset,
 							record_buffer + right_buffer_offset,
-							field_length * sizeof(char));//copy the variable length characters onto the data stream field
-					out_data_offset += field_length;
-					result = true;
+							field_length * sizeof(char));
+
+					free(read_null_byte);
+					free(record_buffer);
+					free(output_read_buffer);
+					return 0;
 				}
 				right_buffer_offset += field_length;
 				break;
 			}
 			}
-		}
-		if (result) {
-			break;
 		}
 	}
 	free(read_null_byte);
@@ -1094,15 +1037,13 @@ RC RBFM_ScanIterator::getNextRecord(RID &rid, void *data) {
 
 	int res = 0; //return cached
 	char *read_page_buffer = (char*) calloc(PAGE_SIZE, sizeof(char)); //create the page-buffer
-//	fileHandle.readPage(remainingRID.pageNum,
-//			read_page_buffer); //to read page each new page in the file
 
 	if (fileHandle.readPage(remainingRID.pageNum, read_page_buffer) < 0) { //if read fails due to pageNum being greater that last page Num
 		free(read_page_buffer);
 		return RBFM_EOF;
 	}
 
-	unsigned int num_of_slots_on_page = 0;
+	int num_of_slots_on_page = 0;
 	memcpy(&num_of_slots_on_page, read_page_buffer + 4092, 2);
 
 	//validate next record
@@ -1117,7 +1058,7 @@ RC RBFM_ScanIterator::getNextRecord(RID &rid, void *data) {
 		getNextRID(rid);		//update the present rid to the cached rid
 		if (remainingRID.slotNum > num_of_slots_on_page) {
 			remainingRID.pageNum++;	//if the slot num = mum of slots on page -> move to the next page
-			if (remainingRID.pageNum >= fileHandle.getNumberOfPages()) {//if the page num exceeds the pages in a file
+			if ( (unsigned) remainingRID.pageNum >= fileHandle.getNumberOfPages()) {//if the page num exceeds the pages in a file
 				res = RBFM_EOF;
 				break;
 			}
@@ -1129,9 +1070,7 @@ RC RBFM_ScanIterator::getNextRecord(RID &rid, void *data) {
 
 	if (res != RBFM_EOF) {
 		//retrieve the required attributes for the selected record that returns true for compare operation and update the page and slot nums.
-
 		getRequiredRecord(data, record_buffer);	//to set the data for the function referenced parameters
-
 		getNextRID(rid);//to set the rid for the function referenced parameters
 	}
 
@@ -1150,7 +1089,7 @@ RC RBFM_ScanIterator::getNextRID(RID &tempRID) {
 RC RBFM_ScanIterator::validateRID(RID &tempRID,
 		const int num_of_slots_on_page) {
 
-	if (remainingRID.slotNum > (unsigned) num_of_slots_on_page) {
+	if (remainingRID.slotNum > num_of_slots_on_page) {
 		return -1;
 	}
 	return 0;
@@ -1163,67 +1102,15 @@ RC RBFM_ScanIterator::readAndValidateNextRecord(RID &rid, void *buffer,
 		return -1;
 	}
 
-//	memcpy(&num_of_slots_on_page, buffer + 4092, 2);
-//	cout << "num_of_slots_on_page on " << remainingRID.pageNum << " = "
-//			<< num_of_slots_on_page << endl;
-
-	//--
-//	bool break_flag = false;
-//	int slot_rec_offset = 0, slot_rec_len = 0;
-//	int rid_slot_num = rid.slotNum;
-//	int rid_page_num = rid.pageNum;
-//
-//	do {
-//		fileHandle.readPage(rid_page_num, buffer);
-//		memcpy(&slot_rec_offset,
-//				(char *) buffer + SEEK_NUM_OF_RECORDS
-//						- (rid_slot_num * SIZE_OF_SLOT) + SIZE_OF_LAST_BLOCK,
-//				SIZE_OF_LAST_BLOCK);//copy the value of record start offset from slot dir
-//		cout << "slot_rec_offset inside readAndValidateNextRecord "
-//				<< slot_rec_offset << endl;	//
-//		memcpy(&slot_rec_len,
-//				(char *) buffer + SEEK_NUM_OF_RECORDS
-//						- (rid_slot_num * SIZE_OF_SLOT), SIZE_OF_LAST_BLOCK);//copy the old/existing record length from slot dir
-//		cout << "slot_rec_len inside readAndValidateNextRecord " << slot_rec_len
-//				<< endl;	//
-//		if (slot_rec_len == -1) {
-//			memcpy(&rid_page_num, (char *) buffer + slot_rec_offset,
-//					sizeof(int));//update with the pointer to new rid page_num
-//			memcpy(&rid_slot_num,
-//					(char *) buffer + slot_rec_offset + sizeof(int),
-//					sizeof(int));	//update with the pointer to rid slot_num
-//			cout << "rid_page_num inside readAndValidateNextRecord "
-//					<< rid_page_num << endl;
-//			cout << "rid_slot_num inside readAndValidateNextRecord "
-//					<< rid_slot_num << endl;
-//		} else if (slot_rec_len == 0) {
-//			break_flag = true;
-//			break;
-//		} else {
-//			break;	//break loop if the slot length is not -1
-//		}
-//	} while (slot_rec_len < 0);
-//
-//	if (break_flag) {
-//		return -1;
-//	} else {
-//		memcpy((char *) record_buffer, (char *) buffer + slot_rec_offset,
-//				slot_rec_len);	//copy record in page onto record buffer
-//		if (checkConditionRecord(record_buffer) < 0) {
-//			return -1;
-//		}
-//	}
-
-	//--
-
 	//validate RID without checking for updated record
 	int slot_offset = 0, slot_len = 0;
 	memcpy(&slot_len,
 			(char *) buffer + SEEK_NUM_OF_RECORDS
 					- (rid.slotNum * SIZE_OF_SLOT), SIZE_OF_LAST_BLOCK);
 	memcpy(&slot_offset,
-			(char *) buffer + SEEK_NUM_OF_RECORDS - (rid.slotNum * SIZE_OF_SLOT)
-					+ SIZE_OF_LAST_BLOCK, SIZE_OF_LAST_BLOCK);
+			(char *) buffer + SEEK_NUM_OF_RECORDS
+					- (rid.slotNum * SIZE_OF_SLOT)+ SIZE_OF_LAST_BLOCK,
+			SIZE_OF_LAST_BLOCK);
 	if (slot_len <= 0) {//if trying to access a deleted record or an updated record ....to be handled----*************
 		return -1;
 	} else {
@@ -1249,6 +1136,14 @@ RC RBFM_ScanIterator::checkConditionRecord(void *record) {
 	void *compare = calloc(PAGE_SIZE, 1);
 	rbfm->readAttribute(fileHandle, recordDescriptor, remainingRID,
 			conditionAttribute, compare);
+
+	//check for null bit
+	char nullCheck=0;
+	memcpy(&nullCheck,(char *) compare,1);
+	if((nullCheck & (1 << 7)) == true){
+		free(compare);
+		return -1;
+	}
 
 	if (condition_Attr_Type == TypeInt) {
 		int compare1 = 0;
@@ -1351,7 +1246,6 @@ RC RBFM_ScanIterator::getRequiredRecord(void *data, char *record) {
 		int field_end_offset = 0;
 
 		int pos = getAttributeNameId(attributeNames[j], recordDescriptor);
-//		bool matchFlag=false;
 		if (pos < 0) {//if the attr_names list doesn't match with record descriptor
 			write_null_byte[num_of_null_bytes_on_write_data] |= (1
 					<< (7 - num_of_null_bit_on_write_data));
@@ -1360,14 +1254,12 @@ RC RBFM_ScanIterator::getRequiredRecord(void *data, char *record) {
 			return -1;
 		} else {
 			for (int i = 0; i < descriptor_size; i++) {
-//				matchFlag = attributeNames[j] == recordDescriptor[i].name?true:false;
 				int result = false;	//to break from for loop
 				int num_of_null_bit = i % 8;
 				int num_of_null_bytes = i / 8;
 				if (read_null_byte[num_of_null_bytes]
 						& (1 << (7 - num_of_null_bit))) {
 					if (attributeNames[j] == recordDescriptor[i].name) {
-//						return -1;
 						write_null_byte[num_of_null_bytes_on_write_data] |= (1
 								<< (7 - num_of_null_bit_on_write_data));//set the bit to null indication for the given attribute name
 						break;
@@ -1377,8 +1269,6 @@ RC RBFM_ScanIterator::getRequiredRecord(void *data, char *record) {
 					memcpy(&field_end_offset, record + left_buffer_offset,
 							sizeof(int));//load the offset address onto the into variable
 					left_buffer_offset += sizeof(int);//move offset to next byte(point to next address block)
-					cout << "field_end_offset inside get next record :"
-							<< field_end_offset << endl;
 
 					switch (recordDescriptor[i].type) {
 					case TypeInt: {
@@ -1387,24 +1277,14 @@ RC RBFM_ScanIterator::getRequiredRecord(void *data, char *record) {
 									(char *) data + null_bytes_count
 											+ out_data_offset,
 									record + right_buffer_offset, sizeof(int));	//copy the int 4bytes into the data
-
-							//cout debug
-							cout << "TypeIntrecord field read at "
-									<< right_buffer_offset << endl;
 							int value = 0;
 							memcpy(&value, record + right_buffer_offset,
 									sizeof(int));
-							cout << endl << "TypeInt value pushed for "
-									<< recordDescriptor[i].name << endl;
-							cout << "TypeInt value at index" << i << " = "
-									<< value << endl << endl;
 
 							out_data_offset += sizeof(int);
 							result = true;
 						}
 						right_buffer_offset += sizeof(int);
-						cout << "right_buffer_offset after int: "
-								<< right_buffer_offset << endl;
 						break;
 					}
 					case TypeReal: {
@@ -1414,24 +1294,14 @@ RC RBFM_ScanIterator::getRequiredRecord(void *data, char *record) {
 											+ out_data_offset,
 									record + right_buffer_offset,
 									sizeof(float));	//copy the real 4bytes into the data
-
-							//cout debug
-							cout << "TypeReal record field read at "
-									<< right_buffer_offset << endl;
 							float value = 0;
 							memcpy(&value, record + right_buffer_offset,
 									sizeof(float));
-							cout << endl << "TypeReal value pushed for "
-									<< recordDescriptor[i].name << endl;
-							cout << "TypeReal value at index :" << i << value
-									<< endl << endl;
 
 							out_data_offset += sizeof(float);
 							result = true;
 						}
 						right_buffer_offset += sizeof(float);
-						cout << "right_buffer_offset after float: "
-								<< right_buffer_offset << endl;
 						break;
 					}
 					case TypeVarChar: {
@@ -1444,9 +1314,6 @@ RC RBFM_ScanIterator::getRequiredRecord(void *data, char *record) {
 									sizeof(int));//4 bytes represent of no. of characters on data
 							out_data_offset += sizeof(int);
 
-							cout << "TypeVarChar record field read at "
-									<< right_buffer_offset << endl;
-
 							memcpy(
 									(char *) data + null_bytes_count
 											+ out_data_offset,
@@ -1454,22 +1321,9 @@ RC RBFM_ScanIterator::getRequiredRecord(void *data, char *record) {
 									field_length * sizeof(char));//copy the variable length characters onto the data stream field
 							out_data_offset += field_length;
 
-//							cout debug
-							char* char_attr = (char*) calloc(field_length,
-									sizeof(char));
-							memcpy(char_attr, record + null_bytes_count,
-									field_length);
-							cout << endl << "TypeVarChar pushed for "
-									<< recordDescriptor[i].name << endl;
-							cout << "TypeVarChar value from " << i << ":"
-									<< char_attr << endl << endl;
-							free(char_attr);
-
 							result = true;
 						}
 						right_buffer_offset += field_length;
-//						cout << "right_buffer_offset after varchar: "
-//								<< right_buffer_offset << endl;
 						break;
 					}
 					}

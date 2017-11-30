@@ -272,6 +272,16 @@ RC FileHandle::readRootPageNumber(){
     return val;
 }
 
+RC FileHandle::writeTableId(int tableId){
+    FILE* file = getPageFilePtr();
+    int offset = 4;
+    fseek(file, offset*4, SEEK_SET);
+    fwrite(&tableId, sizeof(int), 1, file);
+    fflush(file);
+
+    return 0;
+}
+
 RC FileHandle::readTableId(){
     FILE* file = getPageFilePtr();
     int offset = 4;

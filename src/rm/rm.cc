@@ -1,12 +1,11 @@
 #include "rm.h"
 
-#include "../ix/ix.h"
-
 #include <cmath>
 #include <cstdlib>
 #include <cstring>
 #include <iostream>
 
+#include "../ix/ix.h"
 #include "../rbf/pfm.h"
 
 RelationManager* RelationManager::instance() {
@@ -20,7 +19,7 @@ RelationManager::RelationManager() {
 
 RelationManager::~RelationManager() {
 }
-//int tableId=0;
+
 RC RelationManager::createCatalog() {
 	RecordBasedFileManager* _rbfm = RecordBasedFileManager::instance();
 
@@ -158,10 +157,17 @@ RC RelationManager::createTable(const string &tableName,
 
 	int offset = 0;
 
-//	tableId++;
-	int tableId = rand() % 1000+1;
+	RID rid;
 
-	tableId++;
+	if (_rbfm->openFile("Tables", fileHandle) != 0) //open the tables file
+			{
+		free(data);
+		return -1;
+	}
+
+	int tableId = fileHandle.readTableId()+1;//rand() % 100000+1;
+	fileHandle.writeTableId(tableId);
+
 	tableNameLength = tableName.length();
 	//data has to be in insert record format
 	memset(data, 0, dataLength);	  	//set the buffer as 0 for all locations
@@ -187,13 +193,6 @@ RC RelationManager::createTable(const string &tableName,
 	memcpy((char *) data + offset, tableName.c_str(), tableName.length()); //copy the filename
 	offset += tableName.length();
 
-	RID rid;
-
-	if (_rbfm->openFile("Tables", fileHandle) != 0) //open the tables file
-			{
-		free(data);
-		return -1;
-	}
 	if (_rbfm->insertRecord(fileHandle, tableInfo, data, rid) != 0) //insert the created tables details in 'Tables' table
 			{
 
@@ -418,6 +417,9 @@ RC RelationManager::getAttributes(const string &tableName,
 
 RC RelationManager::insertTuple(const string &tableName, const void *data,
 		RID &rid) {
+
+	if(tableName=="Tables" || tableName =="Columns")return -1;
+
 	//get the filename from the table name
 	RecordBasedFileManager* _rbfm = RecordBasedFileManager::instance();
 	FileHandle fileHandle;
@@ -442,6 +444,8 @@ RC RelationManager::deleteTuple(const string &tableName, const RID &rid) {
 	RecordBasedFileManager* _rbfm = RecordBasedFileManager::instance();
 	FileHandle fileHandle;
 	//RC RecordBasedFileManager::deleteRecord(FileHandle &fileHandle,const vector<Attribute> &recordDescriptor, const RID &rid)
+	if(tableName=="Tables" || tableName =="Columns")return -1;
+
 	if (_rbfm->openFile(tableName, fileHandle) != 0) //open file
 			{
 		return -1;
@@ -736,7 +740,7 @@ RC RelationManager::getOneAttributeFromName(const string &tableName, const strin
         return -1;
     }
 
-    for (int i = 0; i < attrs.size(); i++) {
+    for (unsigned i = 0; i < attrs.size(); i++) {
         if (attrs[i].name == attributeName) {
             attr = attrs[i];
             return 0;

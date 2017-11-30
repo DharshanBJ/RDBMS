@@ -55,6 +55,7 @@ public:
     RC writeRootPageNumber(int pageNum);							  //hidden page root page number store write
     RC readRootPageNumber();											  //hidden page root number read
     RC readTableId();											  		//hidden page table-ID read
+    RC writeTableId(int pageNum);							  //hidden page tablle-Id store write
 private:
     string fileName;
     FILE* file_Ptr;
