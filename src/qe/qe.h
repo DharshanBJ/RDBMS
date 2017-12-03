@@ -30,6 +30,8 @@ struct Condition {
     bool    bRhsIsAttr;     // TRUE if right-hand side is an attribute and not a value; FALSE, otherwise.
     string  rhsAttr;        // right-hand side attribute if bRhsIsAttr = TRUE
     Value   rhsValue;       // right-hand side value if bRhsIsAttr = FALSE
+
+    bool compare(const void* left, const void* right, AttrType type) const;
 };
 
 
@@ -198,9 +200,18 @@ class Filter : public Iterator {
         );
         ~Filter(){};
 
-        RC getNextTuple(void *data) {return QE_EOF;};
+        RC getNextTuple(void *data);
         // For attribute in vector<Attribute>, name it as rel.attr
-        void getAttributes(vector<Attribute> &attrs) const{};
+        void getAttributes(vector<Attribute> &attrs) const;
+
+    private:
+        Iterator* _ipt;
+        Condition _cndtn;
+
+
+        std::vector<Attribute> lhs_Attr_list;
+        unsigned lhs_Attr_Index;
+        unsigned rhs_Attr_Index;
 };
 
 

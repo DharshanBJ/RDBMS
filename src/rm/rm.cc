@@ -491,7 +491,7 @@ RC RelationManager::insertTuple(const string &tableName, const void *data,
 	void *returnedData = malloc(4096);
 	while (rm_si.getNextTuple(rid2, returnedData) != RM_EOF) {
 		//push the attributes into a vector
-		int length = 0, offset = 0;
+		int length = 0, offset = 1;
 		memcpy(&length, (char *) returnedData+offset, sizeof(int));
 		offset += sizeof(int);
 		string attrbName((char *) returnedData + offset, length);
@@ -1079,7 +1079,12 @@ RC RelationManager::createIndex(const string &tableName, const string &attribute
     int indexNameLength = indexName.length();
 
     offset = 0;
-    memcpy((char *) indexBuffer + offset, &tableId, sizeof(int));
+
+    //copy the null indicator size bits
+    memset((char *) data + offset, 0, 1);//ceil(3/8) == 1
+    offset += 1;
+
+    memcpy((char *) indexBuffer + offset, tableId, sizeof(int));
     offset += sizeof(int);
 
     memcpy((char *) indexBuffer + offset, &attributeNameLength, sizeof(int));
@@ -1097,6 +1102,7 @@ RC RelationManager::createIndex(const string &tableName, const string &attribute
     if (_rbfm->openFile("Indexes", fh) != 0) {
         return -1;
     }
+    _rbfm->printRecord(indexAttribs,indexBuffer);
     if (_rbfm->insertRecord(fh, indexAttribs, indexBuffer, indexFileRid) != 0) {
         return -1;
     }
