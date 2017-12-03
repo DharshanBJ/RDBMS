@@ -158,6 +158,8 @@ RC RelationManager::createTable(const string &tableName,
 
 	int offset = 0;
 
+	RID rid;
+
 	if (_rbfm->openFile("Tables", fileHandle) != 0) //open the tables file
 	{
 		free(data);
@@ -191,13 +193,6 @@ RC RelationManager::createTable(const string &tableName,
 	memcpy((char *) data + offset, tableName.c_str(), tableName.length()); //copy the filename
 	offset += tableName.length();
 
-	RID rid;
-
-	if (_rbfm->openFile("Tables", fileHandle) != 0) //open the tables file
-			{
-		free(data);
-		return -1;
-	}
 	if (_rbfm->insertRecord(fileHandle, tableInfo, data, rid) != 0) //insert the created tables details in 'Tables' table
 			{
 
@@ -422,6 +417,9 @@ RC RelationManager::getAttributes(const string &tableName,
 
 RC RelationManager::insertTuple(const string &tableName, const void *data,
 		RID &rid) {
+
+	if(tableName=="Tables" || tableName =="Columns")return -1;
+
 	//get the filename from the table name
 	RecordBasedFileManager* _rbfm = RecordBasedFileManager::instance();
 	RM_ScanIterator rm_si;
@@ -624,7 +622,7 @@ RC RelationManager::deleteTuple(const string &tableName, const RID &rid) {
 	RecordBasedFileManager* _rbfm = RecordBasedFileManager::instance();
 	FileHandle fileHandle;
 	//RC RecordBasedFileManager::deleteRecord(FileHandle &fileHandle,const vector<Attribute> &recordDescriptor, const RID &rid)
-
+	if(tableName=="Tables" || tableName =="Columns")return -1;
 	// Read data to delete
 	void *data = malloc(4096);
 	memset(data, 0, 4096);
@@ -1196,7 +1194,7 @@ RC RelationManager::indexScan(const string &tableName,
 {
 
     string indexName = tableName+"_"+attributeName;
-    RecordBasedFileManager* _rbfm = RecordBasedFileManager::instance();
+//    RecordBasedFileManager* _rbfm = RecordBasedFileManager::instance();
     IndexManager *_ix = IndexManager::instance();
     IXFileHandle ixfileHandle;
 

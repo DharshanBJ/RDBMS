@@ -12,3 +12,7 @@ rbftest*
 *.o
 /.metadata/
 /Debug/
+qetest*
+clitest*
+rmtest*
+
