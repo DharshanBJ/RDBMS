@@ -6,7 +6,7 @@
 //#include <map>
 
 #include "../rbf/rbfm.h"
-
+#include "../ix/ix.h"
 
 using namespace std;
 
@@ -37,6 +37,11 @@ class RM_IndexScanIterator {
   // "key" follows the same format as in IndexManager::insertEntry()
   RC getNextEntry(RID &rid, void *key) {return RM_EOF;};  	// Get next matching entry
   RC close() {return -1;};             			// Terminate index scan
+
+  RC setIXSI(IX_ScanIterator* _ixsi);
+private:
+    IX_ScanIterator* _ixsi;
+
 };
 
 
@@ -98,6 +103,10 @@ public:
 
   RC getOneAttributeFromName(const string &tableName, const string &attributeName, Attribute &attr);
   RC getIndexDescription(vector<Attribute> &indexDescriptor);
+ //   RC insertIndex(const string &tableName, const void *data, const RID &rid);
+   RC  deleteIndex(const string &tableName,const void *data, const RID &rid);
+ //   RC searchExistedIndex(const string &tableName, vector<Attribute> &attribute, vector<Attribute> &indexedAttr,
+               //        const void *data, vector<void *> &keys);
 
 // Extra credit work (10 points)
 public:
