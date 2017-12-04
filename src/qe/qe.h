@@ -208,8 +208,7 @@ class Filter : public Iterator {
         Iterator* _ipt;
         Condition _cndtn;
 
-
-        std::vector<Attribute> lhs_Attr_list;
+        vector<Attribute> lhs_Attr_list;
         unsigned lhs_Attr_Index;
         unsigned rhs_Attr_Index;
 };

@@ -12,7 +12,7 @@ using namespace std;
 
 # define RM_EOF (-1)  // end of a scan operator
 
-// RM_ScanIterator is an iteratr to go through tuples
+// RM_ScanIterator is an iterat0r to go through tuples
 class RM_ScanIterator {
 public:
   RM_ScanIterator() {};
@@ -20,7 +20,7 @@ public:
 
   RBFM_ScanIterator rbfmsi;
 
-//  FileHandle fileHandle;
+  FileHandle fileHandle;
 
   // "data" follows the same format as RelationManager::insertTuple()
   RC getNextTuple(RID &rid, void *data);
@@ -34,13 +34,16 @@ class RM_IndexScanIterator {
   RM_IndexScanIterator() {};  	// Constructor
   ~RM_IndexScanIterator() {}; 	// Destructor
 
-  // "key" follows the same format as in IndexManager::insertEntry()
-  RC getNextEntry(RID &rid, void *key) {return RM_EOF;};  	// Get next matching entry
-  RC close() {return -1;};             			// Terminate index scan
+  IX_ScanIterator _ixsi;
+  IXFileHandle ixfileHandle;
 
-  RC setIXSI(IX_ScanIterator* _ixsi);
-private:
-    IX_ScanIterator* _ixsi;
+  // "key" follows the same format as in IndexManager::insertEntry()
+  RC getNextEntry(RID &rid, void *key);  	// Get next matching entry
+  RC close();             			// Terminate index scan
+
+//  RC setIXSI(IX_ScanIterator _ixsi);
+//private:
+//    IX_ScanIterator* _ixsi;
 
 };
 

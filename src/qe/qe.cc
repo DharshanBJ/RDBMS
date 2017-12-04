@@ -1,6 +1,55 @@
 #include "qe.h"
 
+#include <cmath>
 #include <cstring>
+#include <iterator>
+#include <string>
+
+#include "../rbf/pfm.h"
+
+//RC getAttrValue(vector<Attribute> attrs, string attr, void *data, void *value)
+//{
+//
+//    int nullSize = ceil( (double)attrs.size() / 8 ) ;
+//
+//    unsigned char nullIndicator[nullSize];
+//
+//    memcpy( nullIndicator, data, nullSize);
+//
+//    int offset = nullSize; // offset to find value
+//
+//    for( int i=0; i<attrs.size(); i++){
+//        //size only used in this scope
+//        int size;
+//
+//        // check if attrs[i] is desired attribute
+//        if( attrs[i].name.compare( attr ) == 0 ){
+//            // if null indicator is 1, no value for desired attribute
+//
+//            if( nullIndicator[i/8] & ( 1 << (7-(i%8)) ) ){
+//
+//                return attrs[i].type;
+//            }
+//            // get attribute value size
+//            size = size_In_Bytes( attrs[i].type, (char*)data+offset );
+//
+//            memcpy( value, (char*)data+offset, size );
+//
+//            return attrs[i].type;
+//        }else{
+//
+//            // skip null field for increasing offset
+//            if( nullIndicator[i/8] & ( 1 << (7-(i%8)) ) ) continue;
+//
+//            // calculate size for value
+//            size = size_In_Bytes( attrs[i].type, (char*)data+offset );
+//            offset += size;
+//        }
+//
+//    }
+//
+//}
+
 
 RC size_In_Bytes(AttrType type, const void* value) {
 	if (type == TypeReal)
@@ -53,13 +102,13 @@ bool Condition::compare(const void* left, const void* right,
 	case TypeInt: {
 		int leftInt = 0, rightInt = 0; //*((int*) left)
 		memcpy(&leftInt, left, 4);
-		memcpy(&rightInt, left, 4);
+		memcpy(&rightInt, right, 4);
 		return compareIntFloat<int>(leftInt, rightInt, op);
 	}
 	case TypeReal: {
 		float leftFloat = 0, rightFloat = 0; //*((float*) left)
 		memcpy(&leftFloat, left, 4);
-		memcpy(&rightFloat, left, 4);
+		memcpy(&rightFloat, right, 4);
 		return compareIntFloat<float>(leftFloat, rightFloat, op);
 	}
 	case TypeVarChar: {
@@ -77,10 +126,10 @@ bool Condition::compare(const void* left, const void* right,
 	return false;
 }
 
-Filter::Filter(Iterator* input, const Condition &condition) {//: _ipt(input),_cndtn(condition) {
+Filter::Filter(Iterator* input, const Condition &condition){//: _ipt(input),_cndtn(condition)
 
-	_ipt = input;
-	_cndtn = condition;
+	this->_ipt = input;
+	this->_cndtn = condition;
 
 	//to do changes here... not tested
 	getAttributes(lhs_Attr_list);
@@ -94,14 +143,15 @@ Filter::Filter(Iterator* input, const Condition &condition) {//: _ipt(input),_cn
 }
 
 void Filter::getAttributes(vector<Attribute> &attrs) const {
-	return _ipt->getAttributes(attrs);
+	return this->_ipt->getAttributes(attrs);
 }
 
 RC Filter::getNextTuple(void *data) {
+
 	while (_ipt->getNextTuple(data) != QE_EOF) {
 
 		// Find where the attribute we care about is in the returned tuple
-		unsigned lhs_Offset = 0;
+		unsigned lhs_Offset = ceil((double) lhs_Attr_list.size() / 8);
 
 		for (unsigned int i = 0; i < lhs_Attr_Index; ++i) {
 			Attribute l_attr = lhs_Attr_list[i];
@@ -110,7 +160,7 @@ RC Filter::getNextTuple(void *data) {
 
 		// If the RHS is an attribute, load in the attribute's data
 		if (_cndtn.bRhsIsAttr) {
-			unsigned rhsDataOffset = 0;
+			unsigned rhsDataOffset = ceil((double) lhs_Attr_list.size() / 8);//check this?
 			for (unsigned int i = 0; i < rhs_Attr_Index; ++i) {
 				Attribute r_attr = lhs_Attr_list[i];
 				rhsDataOffset += size_In_Bytes(r_attr.type,
@@ -119,7 +169,8 @@ RC Filter::getNextTuple(void *data) {
 			_cndtn.rhsValue.data = (char*) data + rhsDataOffset;
 		}
 
-		if (_cndtn.compare(_cndtn.rhsValue.data, (char*) data + lhs_Offset,
+		//traverse through the data to reach to the particular offset where the value for attribute exists
+		if (_cndtn.compare((char*) data + lhs_Offset, _cndtn.rhsValue.data,
 				_cndtn.rhsValue.type)) {
 			return 0;
 		}
