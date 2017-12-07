@@ -20,6 +20,53 @@ RC size_In_Bytes(AttrType type, const void* value) {
 	return 0;
 }
 
+AttrType getAttrValue(vector<Attribute> attrs, string attr, void *data,
+		void *value) {
+
+	AttrType result;
+	int nullSize = ceil((double) attrs.size() / 8);
+
+	unsigned char nullIndicator[nullSize];
+
+	memcpy(nullIndicator, data, nullSize);
+
+	int offset = nullSize; // offset to find value
+
+	for (unsigned i = 0; i < attrs.size(); i++) {
+		//size only used in this scope
+		int size;
+
+		// check if attrs[i] is desired attribute
+		if (attrs[i].name.compare(attr) == 0) {
+			// if null indicator is 1, no value for desired attribute
+
+			if (nullIndicator[i / 8] & (1 << (7 - (i % 8)))) { //if null-indicator is 1
+
+				result = attrs[i].type;
+				break;
+			}
+			// get attribute value size
+			size = size_In_Bytes(attrs[i].type, (char*) data + offset); //if null-indicator is 0
+
+			memcpy(value, (char*) data + offset, size); //copy the value of the attribute into value,which will be returned back
+
+			result = attrs[i].type;
+			break;
+		} else {
+
+			// skip null field for increasing offset
+			if (nullIndicator[i / 8] & (1 << (7 - (i % 8))))
+				continue;
+
+			// calculate size for value
+			size = size_In_Bytes(attrs[i].type, (char*) data + offset);
+			offset += size;
+		}
+
+	}
+	return result;
+}
+
 // Linearly search through the attributes to match the name
 RC findAttributeIndexByName(const string& conditionAttribute,
 		const vector<Attribute>& recordDescriptor, unsigned& index) {
@@ -83,6 +130,36 @@ bool Condition::compare(const void* left, const void* right,
 	}
 	}
 	return false;
+}
+
+void merge_two_records(vector<Attribute> lAttrs, void *ldata,
+		vector<Attribute> rAttrs, void *rdata, void *data) {
+
+	int result_null_size = ceil((double) (lAttrs.size() + rAttrs.size()) / 8);
+	int l_null = ceil((double) lAttrs.size() / 8.0);
+	int r_null = ceil((double) lAttrs.size() / 8.0);
+	int lsize = l_null; //offset
+	int rsize = r_null; //offset
+
+	memset(data, 0, result_null_size); //clear the null bits for resultant null bytes
+
+	int result_buffer_offset = result_null_size;
+
+	for (unsigned i = 0; i < lAttrs.size(); i++) {
+		int len = 0;
+		len += size_In_Bytes(lAttrs[i].type, (char*) ldata + lsize);
+		memcpy((char*) data + result_buffer_offset, (char*) ldata + lsize, len);
+		lsize += len;
+		result_buffer_offset += len;
+	}
+
+	for (unsigned i = 0; i < rAttrs.size(); i++) {
+		int len = 0;
+		len += size_In_Bytes(rAttrs[i].type, (char*) rdata + rsize);
+		memcpy((char*) data + result_buffer_offset, (char*) rdata + rsize, len);
+		rsize += len;
+		result_buffer_offset += len;
+	}
 }
 
 Filter::Filter(Iterator* input, const Condition &condition) { //: _ipt(input),_cndtn(condition)
@@ -239,58 +316,12 @@ void Aggregate::getAttributes(vector<Attribute> &attrs) const {
 	input->getAttributes(attrs);
 }
 
-AttrType Aggregate::getAttrValue(vector<Attribute> attrs, string attr,
-		void *data, void *value) {
-
-	int nullSize = ceil((double) attrs.size() / 8);
-
-	unsigned char nullIndicator[nullSize];
-
-	memcpy(nullIndicator, data, nullSize);
-
-	int offset = nullSize; // offset to find value
-
-	for (unsigned i = 0; i < attrs.size(); i++) {
-		//size only used in this scope
-		int size;
-
-		// check if attrs[i] is desired attribute
-		if (attrs[i].name.compare(attr) == 0) {
-			// if null indicator is 1, no value for desired attribute
-
-			if (nullIndicator[i / 8] & (1 << (7 - (i % 8)))) {
-
-				return attrs[i].type;
-			}
-			// get attribute value size
-			size = size_In_Bytes(attrs[i].type, (char*) data + offset);
-
-			memcpy(value, (char*) data + offset, size);
-
-			return attrs[i].type;
-		} else {
-
-			// skip null field for increasing offset
-			if (nullIndicator[i / 8] & (1 << (7 - (i % 8))))
-				continue;
-
-			// calculate size for value
-			size = size_In_Bytes(attrs[i].type, (char*) data + offset);
-			offset += size;
-		}
-
-	}
-
-}
-
 Project::Project(Iterator *input,                    // Iterator of input R
 		const vector<string> &attrNames) :
 		inpt(input), attr_names(attrNames) {
 
 	//to get attributes from the input iterator
 	inpt->getAttributes(inpt_attrs);
-
-	//	getAttributes(project_attrs);
 
 	// calculate the size on a Projected record
 	record_size = 0;
@@ -302,20 +333,20 @@ Project::Project(Iterator *input,                    // Iterator of input R
 
 void Project::getAttributes(vector<Attribute> &attrs) const {
 
-	// to capture projection attributes
-//	attrs.clear();
-//
-//	for (unsigned i = 0; i < attr_names.size(); i++) {
-//		for (unsigned j = 0; j < inpt_attrs.size(); j++) {
-//			if (attr_names[i] == inpt_attrs[j].name) {
-//				Attribute attr;
-//				attr.name = inpt_attrs[j].name;
-//				attr.type = inpt_attrs[j].type;
-//				attr.length = inpt_attrs[j].length;
-//				attrs.push_back(attr);
-//			}
-//		}
-//	}
+//	 to capture projection attributes
+	attrs.clear();
+
+	for (unsigned i = 0; i < attr_names.size(); i++) {
+		for (unsigned j = 0; j < inpt_attrs.size(); j++) {
+			if (attr_names[i] == inpt_attrs[j].name) {
+				Attribute attr;
+				attr.name = inpt_attrs[j].name;
+				attr.type = inpt_attrs[j].type;
+				attr.length = inpt_attrs[j].length;
+				attrs.push_back(attr);
+			}
+		}
+	}
 
 }
 
@@ -329,17 +360,17 @@ RC Project::getNextTuple(void *data) {
 	unsigned len = 0;
 	bool nullBit = false;
 	unsigned nullBitCount = 0;
-//	vector<bool>bit_arr;
+	//	vector<bool>bit_arr;
 
 	while (inpt->getNextTuple(record_buffer) != QE_EOF) {
 
 		int null_byte_count = ceil((double) inpt_attrs.size() / 8); //calculate the no. of null bytes
 		int write_buffer_null_byte = ceil((double) attr_names.size() / 8);
 
-		bool bitArr[write_buffer_null_byte*8] ={0};
-//		for(int z=0;z<(write_buffer_null_byte*8);z++){
-//			bit_arr.push_back(false);
-//		}
+		bool bitArr[write_buffer_null_byte * 8] = { 0 };
+		//		for(int z=0;z<(write_buffer_null_byte*8);z++){
+		//			bit_arr.push_back(false);
+		//		}
 
 		memset(data, 0, write_buffer_null_byte);
 		data_offset += write_buffer_null_byte;
@@ -370,14 +401,14 @@ RC Project::getNextTuple(void *data) {
 				}
 				record_offset += len;
 			} else {
-//				bit_arr[nullBitCount] = true;
+				//				bit_arr[nullBitCount] = true;
 				bitArr[nullBitCount] = 1;
 			}
 
 			nullBitCount++;
 
 		}
-		memcpy(data,&bitArr,write_buffer_null_byte);
+		memcpy(data, &bitArr, write_buffer_null_byte);
 		free(null_bytes);
 		return 0;
 	}
@@ -388,5 +419,282 @@ Project::~Project() {
 	if (record_buffer != NULL) {
 		free(record_buffer);
 	}
+}
+
+BNLJoin::BNLJoin(Iterator *leftIn, TableScan *rightIn,
+		const Condition &condition, const unsigned numPages) {
+
+	left_inpt = leftIn;
+	right_inpt = rightIn;
+	cndtn = condition;
+	num_pages = numPages;
+	loadMap = 1;
+
+	left_inpt->getAttributes(lAttr);
+	right_inpt->getAttributes(rAttr);
+
+	findAttributeIndexByName(cndtn.lhsAttr, lAttr, lhs_Attr_Index);
+
+	findAttributeIndexByName(cndtn.rhsAttr, rAttr, rhs_Attr_Index);
+	cndtn.rhsValue.type = rAttr.at(rhs_Attr_Index).type;
+
+}
+
+RC BNLJoin::makeMap(void *left_data) {
+
+	intMap.clear();
+	floatMap.clear();
+	stringMap.clear();
+
+	unsigned lhs_Offset = ceil((double) lAttr.size() / 8);
+
+	while (left_inpt->getNextTuple(left_data)) {
+
+		for (unsigned int i = 0; i < lhs_Attr_Index; ++i) {
+			Attribute l_Attr = lAttr[i];
+			lhs_Offset += size_In_Bytes(l_Attr.type,
+					(char*) left_data + lhs_Offset);
+		}
+
+		int len = size_In_Bytes(cndtn.rhsValue.type,
+				(char*) left_data + lhs_Offset);
+
+		switch (cndtn.rhsValue.type) {
+		case TypeInt: {
+			int key = 0;
+			memcpy(&key, (char*) left_data + lhs_Offset, 4);
+			intMap.insert(pair<int, void*>(key, left_data));
+			if (sizeof(intMap) >= num_pages * PAGE_SIZE) {
+				return 0;
+			}
+			break;
+		}
+		case TypeReal: {
+			float key = 0;
+			memcpy(&key, (char*) left_data + lhs_Offset + 4, 4);
+			floatMap.insert(pair<float, void*>(key, left_data));
+			if (sizeof(floatMap) >= num_pages * PAGE_SIZE) {
+				return 0;
+			}
+			break;
+		}
+
+		case TypeVarChar: {
+			string key((char *) left_data + lhs_Offset + 4, len - 4); //convert the char array to string
+			stringMap.insert(pair<string, void*>(key, left_data));
+			if (sizeof(stringMap) >= num_pages * PAGE_SIZE) {
+				return 0;
+			}
+			break;
+		}
+		}
+
+	}
+
+	return -1;
+}
+
+RC BNLJoin::findInMap(void *map_data, void *right_data, int rhs_Offset,
+		int len) {
+	switch (cndtn.rhsValue.type) {
+	case TypeInt: {
+		int key = 0;
+		memcpy(&key, (char*) right_data + rhs_Offset, 4);
+		if (intMap.find(key) != intMap.end()) {
+			map_data = intMap[key];
+		}
+		break;
+	}
+	case TypeReal: {
+		float key = 0;
+		memcpy(&key, (char*) right_data + rhs_Offset + 4, 4);
+		if (floatMap.find(key) != floatMap.end()) {
+			map_data = floatMap[key];
+		}
+		break;
+	}
+
+	case TypeVarChar: {
+		string key((char *) right_data + rhs_Offset + 4, len - 4);
+		if (stringMap.find(key) != stringMap.end()) {
+			map_data = stringMap[key];
+		}
+		break;
+	}
+	}
+	return -1;
+}
+
+void BNLJoin::getAttributes(vector<Attribute> &attrs) const {
+
+	attrs.clear();
+	attrs.reserve(lAttr.size() + rAttr.size()); // preallocate memory
+	attrs.insert(attrs.end(), lAttr.begin(), lAttr.end());
+	attrs.insert(attrs.end(), rAttr.begin(), rAttr.end());
+
+}
+
+RC BNLJoin::getNextTuple(void *data) {
+
+	void *l_data = calloc(200, 1);
+	void *r_data = calloc(200, 1);
+	void *left_match = calloc(200, 1);
+
+	while (loadMap != -1) {
+
+		loadMap = (loadMap == 1) ? makeMap(l_data) : 0;
+
+		unsigned lhs_Offset = ceil((double) lAttr.size() / 8);
+
+		while (right_inpt->getNextTuple(r_data) != QE_EOF) {
+
+			unsigned rhs_Offset = ceil((double) rAttr.size() / 8);
+
+			for (unsigned int i = 0; i < rhs_Attr_Index; ++i) {
+				Attribute r_attr = rAttr[i];
+				rhs_Offset += size_In_Bytes(r_attr.type,
+						(char*) r_data + rhs_Offset);
+			}
+
+			int r_len_map = size_In_Bytes(cndtn.rhsValue.type,
+					(char*) r_data + rhs_Offset);
+
+			if (findInMap(left_match, r_data, rhs_Offset, r_len_map)) { //map.find(data key)
+				for (unsigned int i = 0; i < lhs_Attr_Index; ++i) {
+					Attribute l_Attr = lAttr[i];
+					lhs_Offset += size_In_Bytes(l_Attr.type,
+							(char*) left_match + lhs_Offset);
+				}
+
+				merge_two_records(lAttr, left_match, rAttr, r_data, data);
+				free(l_data);
+				free(r_data);
+				free(left_match);
+				return 0;
+			}
+
+		}
+
+		if (loadMap == -1) {
+			break;
+		}
+
+		right_inpt->setIterator();
+		loadMap = 1;
+	}
+
+	free(left_match);
+	free(l_data);
+	free(r_data);
+	return -1;
+}
+INLJoin::INLJoin(Iterator *leftIn, IndexScan *rightIn,
+		const Condition &condition) {
+
+	this->leftIn = leftIn;
+	this->rightIn = rightIn;
+	this->condition = condition;
+
+	//get descriptor for leftIn and rightIn
+	leftIn->getAttributes(leftattrs);
+	rightIn->getAttributes(rightattrs);
+
+}
+
+void INLJoin::getAttributes(vector<Attribute> &attrs) const {
+	//concatenate leftIn attribute and rightIn attribute
+	attrs.clear();
+	for (int i = 0; i < (int) leftattrs.size(); i++) {
+		attrs.push_back(leftattrs[i]);
+	}
+
+	for (int i = 0; i < (int) rightattrs.size(); i++) {
+		attrs.push_back(rightattrs[i]);
+	}
+}
+
+RC INLJoin::getNextTuple(void *data) {
+
+	void * leftdata = malloc(4096);
+	void * rightdata = malloc(4096);
+	void * leftvalue = malloc(4096);
+
+	Attribute attr;
+
+	//load attr from left attrs descriptor
+	for (unsigned i = 0; i < leftattrs.size(); i++) {
+		if (condition.lhsAttr.compare(leftattrs[i].name) == 0
+				&& leftattrs[i].length != 0) {
+			//store the attribute information
+			attr = leftattrs[i]; //attr has left attribute
+			break;
+		}
+	}
+
+	//outer loop for leftIn
+	while (leftIn->getNextTuple(leftdata) != QE_EOF) {
+
+		//leftvalue will have the actual value of lhsattr
+		getAttrValue(leftattrs, condition.lhsAttr, leftdata, leftvalue); //leftvalue will have the condition attribute value from leftdata
+
+		unsigned leftIndex;
+
+		findAttributeIndexByName(condition.lhsAttr, leftattrs, leftIndex);
+
+		unsigned lhs_Offset = ceil((double) leftattrs.size() / 8);
+
+		for (unsigned int i = 0; i < leftIndex; ++i) {
+			Attribute l_attr = leftattrs[i];
+			lhs_Offset += size_In_Bytes(l_attr.type, (char*) data + lhs_Offset);
+		}
+
+		float leftIndexValuefloat = 0;
+		int leftIndexValueInt = 0;
+
+		if (attr.type == TypeReal) {
+
+			memcpy(&leftIndexValuefloat, (char *) leftdata + lhs_Offset,
+					sizeof(float));
+		} else if (attr.type == TypeInt) {
+
+			memcpy(&leftIndexValueInt, (char *) leftdata + lhs_Offset,
+					sizeof(int));
+		}
+
+		//reset iterator for rightIn
+		rightIn->setIterator(NULL, NULL, true, true); //start a new iterator given the new key range
+
+		//inner loop for rightIn
+		while (rightIn->getNextTuple(rightdata) != QE_EOF) {
+			unsigned rightIndex;
+
+			findAttributeIndexByName(condition.rhsAttr, rightattrs, rightIndex);
+
+			unsigned rhs_Offset = ceil((double) rightattrs.size() / 8);
+
+			for (unsigned int i = 0; i < rightIndex; ++i) {
+				Attribute r_attr = rightattrs[i];
+				rhs_Offset += size_In_Bytes(r_attr.type,
+						(char*) data + rhs_Offset);
+			}
+
+			if (condition.compare((char *) leftdata + lhs_Offset,
+					(char *) rightdata + rhs_Offset, attr.type)) {
+				merge_two_records(leftattrs, leftdata, rightattrs, rightdata,
+						data);
+				free(leftdata);
+				free(rightdata);
+				free(leftvalue);
+
+				return 0;
+			};
+
+		}
+	}
+
+	free(leftdata);
+	free(rightdata);
+	free(leftvalue);
+	return QE_EOF;
 }
 // ... the rest of your implementations go here

@@ -1,11 +1,13 @@
 #ifndef _qe_h_
 #define _qe_h_
 
+#include <map>
+#include <string>
 #include <vector>
 
+#include "../rbf/pfm.h"
 #include "../rbf/rbfm.h"
 #include "../rm/rm.h"
-#include "../ix/ix.h"
 
 #define QE_EOF (-1)  // end of the index scan
 
@@ -40,9 +42,7 @@ class Iterator {
 public:
 	virtual RC getNextTuple(void *data) = 0;
 	virtual void getAttributes(vector<Attribute> &attrs) const = 0;
-	virtual ~Iterator() {
-	}
-	;
+	virtual ~Iterator() {};
 };
 
 class TableScan: public Iterator {
@@ -56,7 +56,7 @@ public:
 	RID rid;
 
 	TableScan(RelationManager &rm, const string &tableName, const char *alias =
-			NULL) :
+	NULL) :
 			rm(rm) {
 		//Set members
 		this->tableName = tableName;
@@ -238,44 +238,50 @@ public:
 			const Condition &condition,   // Join condition
 			const unsigned numPages // # of pages that can be loaded into memory,
 									//   i.e., memory block size (decided by the optimizer)
-			) {
-	}
-	;
-	~BNLJoin() {
-	}
-	;
+			);
+	~BNLJoin(){};
 
-	RC getNextTuple(void *data) {
-		return QE_EOF;
-	}
-	;
+	RC getNextTuple(void *data);
 	// For attribute in vector<Attribute>, name it as rel.attr
-	void getAttributes(vector<Attribute> &attrs) const {
-	}
-	;
+	void getAttributes(vector<Attribute> &attrs) const;
+
+	RC makeMap(void *left_data);
+	RC findInMap(void *map_data, void *right_data, int offset, int len);
+
+private:
+	Iterator* left_inpt;
+	TableScan* right_inpt;
+	Condition cndtn;
+	unsigned num_pages;
+	map<int, void*> intMap;
+	map<float, void*> floatMap;
+	map<string, void*> stringMap;
+	vector<Attribute> lAttr;
+	vector<Attribute> rAttr;
+	unsigned lhs_Attr_Index;
+	unsigned rhs_Attr_Index;
+	int loadMap;
 };
 
-class INLJoin: public Iterator {
-	// Index nested-loop join operator
-public:
-	INLJoin(Iterator *leftIn,           // Iterator of input R
-			IndexScan *rightIn,          // IndexScan Iterator of input S
-			const Condition &condition   // Join condition
-			) {
-	}
-	;
-	~INLJoin() {
-	}
-	;
+class INLJoin : public Iterator {
+    // Index nested-loop join operator
+    public:
+        INLJoin(Iterator *leftIn,           // Iterator of input R
+               IndexScan *rightIn,          // IndexScan Iterator of input S
+               const Condition &condition   // Join condition
+        );
+        ~INLJoin(){};
 
-	RC getNextTuple(void *data) {
-		return QE_EOF;
-	}
-	;
-	// For attribute in vector<Attribute>, name it as rel.attr
-	void getAttributes(vector<Attribute> &attrs) const {
-	}
-	;
+        RC getNextTuple(void *data);
+        // For attribute in vector<Attribute>, name it as rel.attr
+        void getAttributes(vector<Attribute> &attrs) const;
+
+private:
+    Iterator* leftIn;
+    IndexScan* rightIn;
+    Condition condition;
+    vector<Attribute> leftattrs;
+    vector<Attribute> rightattrs;
 };
 
 // Optional for everyone. 10 extra-credit points
@@ -331,8 +337,6 @@ public:
 	// E.g. Relation=rel, attribute=attr, aggregateOp=MAX
 	// output attrname = "MAX(rel.attr)"
 	void getAttributes(vector<Attribute> &attrs) const;
-	AttrType getAttrValue(vector<Attribute> attrs, string attr, void *data,
-			void *value);
 	//-------added--------
 
 private:
