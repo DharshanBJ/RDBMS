@@ -4,10 +4,8 @@
 #include <climits>
 #include <cmath>
 #include <cstring>
-#include <iterator>
-#include <string>
-
-#include "../rbf/pfm.h"
+#include <iostream>
+#include <utility>
 
 RC size_In_Bytes(AttrType type, const void* value) {
 	if (type == TypeReal)
@@ -367,10 +365,11 @@ RC Project::getNextTuple(void *data) {
 		int null_byte_count = ceil((double) inpt_attrs.size() / 8); //calculate the no. of null bytes
 		int write_buffer_null_byte = ceil((double) attr_names.size() / 8);
 
-		bool bitArr[write_buffer_null_byte * 8] = { 0 };
-		//		for(int z=0;z<(write_buffer_null_byte*8);z++){
-		//			bit_arr.push_back(false);
-		//		}
+		bool bitArr[write_buffer_null_byte * 8]; // = { 0 };
+		for (int z = 0; z < (write_buffer_null_byte * 8); z++) {
+			//bit_arr.push_back(false);
+			bitArr[z] = 0;
+		}
 
 		memset(data, 0, write_buffer_null_byte);
 		data_offset += write_buffer_null_byte;
@@ -446,9 +445,19 @@ RC BNLJoin::makeMap(void *left_data) {
 	floatMap.clear();
 	stringMap.clear();
 
-	unsigned lhs_Offset = ceil((double) lAttr.size() / 8);
+	while (left_inpt->getNextTuple(left_data) != QE_EOF) {
 
-	while (left_inpt->getNextTuple(left_data)) {
+		unsigned lhs_Offset = ceil((double) lAttr.size() / 8);
+
+		int record_len = lhs_Offset; //check record_len and offset coming in 2nd call here
+		for (unsigned int j = 0; j < lAttr.size(); j++) {
+			Attribute l_Attr = lAttr[j];
+			record_len += size_In_Bytes(l_Attr.type,
+					(char*) left_data + lhs_Offset);
+		}
+
+		void *load_map_ptr = calloc(record_len, 1);
+		memcpy(load_map_ptr, left_data, record_len);
 
 		for (unsigned int i = 0; i < lhs_Attr_Index; ++i) {
 			Attribute l_Attr = lAttr[i];
@@ -463,7 +472,7 @@ RC BNLJoin::makeMap(void *left_data) {
 		case TypeInt: {
 			int key = 0;
 			memcpy(&key, (char*) left_data + lhs_Offset, 4);
-			intMap.insert(pair<int, void*>(key, left_data));
+			intMap.insert(pair<int, void*>(key, load_map_ptr));
 			if (sizeof(intMap) >= num_pages * PAGE_SIZE) {
 				return 0;
 			}
@@ -472,7 +481,7 @@ RC BNLJoin::makeMap(void *left_data) {
 		case TypeReal: {
 			float key = 0;
 			memcpy(&key, (char*) left_data + lhs_Offset + 4, 4);
-			floatMap.insert(pair<float, void*>(key, left_data));
+			floatMap.insert(pair<float, void*>(key, load_map_ptr));
 			if (sizeof(floatMap) >= num_pages * PAGE_SIZE) {
 				return 0;
 			}
@@ -481,7 +490,7 @@ RC BNLJoin::makeMap(void *left_data) {
 
 		case TypeVarChar: {
 			string key((char *) left_data + lhs_Offset + 4, len - 4); //convert the char array to string
-			stringMap.insert(pair<string, void*>(key, left_data));
+			stringMap.insert(pair<string, void*>(key, load_map_ptr));
 			if (sizeof(stringMap) >= num_pages * PAGE_SIZE) {
 				return 0;
 			}
@@ -500,16 +509,19 @@ RC BNLJoin::findInMap(void *map_data, void *right_data, int rhs_Offset,
 	case TypeInt: {
 		int key = 0;
 		memcpy(&key, (char*) right_data + rhs_Offset, 4);
-		if (intMap.find(key) != intMap.end()) {
-			map_data = intMap[key];
+		map<int, void*>::iterator it = intMap.find(key);
+		if (it != intMap.end()) {
+			map_data = it->second;
+			return 0;
 		}
 		break;
 	}
 	case TypeReal: {
 		float key = 0;
-		memcpy(&key, (char*) right_data + rhs_Offset + 4, 4);
+		memcpy(&key, (char*) right_data + rhs_Offset, 4);
 		if (floatMap.find(key) != floatMap.end()) {
 			map_data = floatMap[key];
+			return 0;
 		}
 		break;
 	}
@@ -518,6 +530,7 @@ RC BNLJoin::findInMap(void *map_data, void *right_data, int rhs_Offset,
 		string key((char *) right_data + rhs_Offset + 4, len - 4);
 		if (stringMap.find(key) != stringMap.end()) {
 			map_data = stringMap[key];
+			return 0;
 		}
 		break;
 	}
@@ -538,16 +551,14 @@ RC BNLJoin::getNextTuple(void *data) {
 
 	void *l_data = calloc(200, 1);
 	void *r_data = calloc(200, 1);
-	void *left_match = calloc(200, 1);
+	void *left_match =NULL;//= calloc(200, 1);
 
 	while (loadMap != -1) {
-
 		loadMap = (loadMap == 1) ? makeMap(l_data) : 0;
-
-		unsigned lhs_Offset = ceil((double) lAttr.size() / 8);
 
 		while (right_inpt->getNextTuple(r_data) != QE_EOF) {
 
+			unsigned lhs_Offset = ceil((double) lAttr.size() / 8);
 			unsigned rhs_Offset = ceil((double) rAttr.size() / 8);
 
 			for (unsigned int i = 0; i < rhs_Attr_Index; ++i) {
@@ -558,8 +569,37 @@ RC BNLJoin::getNextTuple(void *data) {
 
 			int r_len_map = size_In_Bytes(cndtn.rhsValue.type,
 					(char*) r_data + rhs_Offset);
+			//----------------------------------------
+			switch (cndtn.rhsValue.type) {
+			case TypeInt: {
+				int key = 0;
+				memcpy(&key, (char*) r_data + rhs_Offset, 4);
+				map<int, void*>::iterator it = intMap.find(key);
+				if (it != intMap.end()) {
+					left_match = it->second;
+				}
+				break;
+			}
+			case TypeReal: {
+				float key = 0;
+				memcpy(&key, (char*) r_data + rhs_Offset, 4);
+				if (floatMap.find(key) != floatMap.end()) {
+					left_match = floatMap[key];
+				}
+				break;
+			}
 
-			if (findInMap(left_match, r_data, rhs_Offset, r_len_map)) { //map.find(data key)
+			case TypeVarChar: {
+				string key((char *) r_data + rhs_Offset + 4, r_len_map - 4);
+				if (stringMap.find(key) != stringMap.end()) {
+					left_match = stringMap[key];
+				}
+				break;
+			}
+			}
+			//---------------------------------------------
+			//if (findInMap(left_match, r_data, rhs_Offset, r_len_map) == 0) {
+			if (left_match != NULL) {
 				for (unsigned int i = 0; i < lhs_Attr_Index; ++i) {
 					Attribute l_Attr = lAttr[i];
 					lhs_Offset += size_In_Bytes(l_Attr.type,
@@ -569,7 +609,8 @@ RC BNLJoin::getNextTuple(void *data) {
 				merge_two_records(lAttr, left_match, rAttr, r_data, data);
 				free(l_data);
 				free(r_data);
-				free(left_match);
+//				free(left_match);
+				loadMap = 0;
 				return 0;
 			}
 
@@ -581,9 +622,30 @@ RC BNLJoin::getNextTuple(void *data) {
 
 		right_inpt->setIterator();
 		loadMap = 1;
+
+		switch (cndtn.rhsValue.type) {
+		case TypeInt: {
+			for (auto it = intMap.begin(); it != intMap.end(); ++it) {
+				free(it->second);
+			}
+			break;
+		}
+		case TypeReal: {
+			for (auto it = floatMap.begin(); it != floatMap.end(); ++it) {
+				free(it->second);
+			}
+			break;
+		}
+		case TypeVarChar: {
+			for (auto it = stringMap.begin(); it != stringMap.end(); ++it) {
+				free(it->second);
+			}
+			break;
+		}
+		}
 	}
 
-	free(left_match);
+//	free(left_match);
 	free(l_data);
 	free(r_data);
 	return -1;
