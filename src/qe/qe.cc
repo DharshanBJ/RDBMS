@@ -187,9 +187,20 @@ RC Filter::getNextTuple(void *data) {
 		// Find where the attribute we care about is in the returned tuple
 		unsigned lhs_Offset = ceil((double) lhs_Attr_list.size() / 8);
 
+		bool nullBit = false;
+		char *null_bytes = (char*) calloc(lhs_Offset, 1);
+		memcpy(null_bytes, data, lhs_Offset);
+
 		for (unsigned int i = 0; i < lhs_Attr_Index; ++i) {
 			Attribute l_attr = lhs_Attr_list[i];
-			lhs_Offset += size_In_Bytes(l_attr.type, (char*) data + lhs_Offset);
+			int num_of_null_bit = i % 8;
+			int num_of_null_bytes = i / 8;
+			if (null_bytes[num_of_null_bytes] & (1 << (7 - num_of_null_bit))) {
+				nullBit = true;
+			} else {
+				lhs_Offset += size_In_Bytes(l_attr.type,
+						(char*) data + lhs_Offset);
+			}
 		}
 
 		// If the RHS is an attribute, load in the attribute's data
@@ -551,7 +562,7 @@ RC BNLJoin::getNextTuple(void *data) {
 
 	void *l_data = calloc(200, 1);
 	void *r_data = calloc(200, 1);
-	void *left_match =NULL;//= calloc(200, 1);
+	void *left_match = NULL; //= calloc(200, 1);
 
 	while (loadMap != -1) {
 		loadMap = (loadMap == 1) ? makeMap(l_data) : 0;
