@@ -189,7 +189,6 @@ RC RelationManager::createTable(const string &tableName,
 
 	memcpy((char *) data + offset, &tableNameLength, sizeof(int)); //copy the filename length
 	offset += sizeof(int);
-	cout << "file name length : " << tableNameLength << endl;
 
 	memcpy((char *) data + offset, tableName.c_str(), tableName.length()); //copy the filename
 	offset += tableName.length();

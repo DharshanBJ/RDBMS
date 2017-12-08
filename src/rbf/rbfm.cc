@@ -106,7 +106,7 @@ RC RecordBasedFileManager::insertRecord(FileHandle &fileHandle,
 			append = false;
 		} else {//if free space in the last page is less than the record length then traverse through all the pages and check for free space: if any write else append new
 			for (int i = 0; i < page_num - 1; i++) {
-				fileHandle.readPage(page_num, read_Write_buffer);//read into the buffer the page details
+				fileHandle.readPage(i, read_Write_buffer);//read into the buffer the page details
 				memcpy(&free_space_block, read_Write_buffer + SEEK_FREE_SPACE,
 				SIZE_OF_LAST_BLOCK);
 
@@ -142,11 +142,13 @@ RC RecordBasedFileManager::insertRecord(FileHandle &fileHandle,
 			//write back and update page nums.
 			fileHandle.appendPage(read_Write_buffer); // append a new file and write the record into it , update the last free space , no. of records , and slot number->offset and length of the record
 
-			rid.pageNum = page_num + 1;//fileHandle.getNumberOfPages(); //page_num + 1;
+			rid.pageNum = page_num + 1;//fileHandle.getNumberOfPages();
 			rid.slotNum = num_of_slots; //or 1 here
 		}
 		free(read_Write_buffer);
 	}
+//	printRecord(recordDescriptor, data); //proj 2 test
+//	cout << "inserted record---------^" << endl << endl;
 	free(buffer);
 	return 0;
 }
@@ -1071,6 +1073,7 @@ RC RBFM_ScanIterator::getNextRecord(RID &rid, void *data) {
 	if (res != RBFM_EOF) {
 		//retrieve the required attributes for the selected record that returns true for compare operation and update the page and slot nums.
 		getRequiredRecord(data, record_buffer);	//to set the data for the function referenced parameters
+
 		getNextRID(rid);//to set the rid for the function referenced parameters
 	}
 
@@ -1335,7 +1338,7 @@ RC RBFM_ScanIterator::getRequiredRecord(void *data, char *record) {
 		}
 
 	}
-	//write_null_byrtes updating for output data
+	//write_null_bytes updating for output data
 	memcpy((char *) data, write_null_byte, null_bytes_count);
 
 	free(write_null_byte);
